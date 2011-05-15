@@ -231,18 +231,12 @@ puts 'assoc_with_record.send(model_name.to_sym) - ' + assoc_with_record.send(mod
         $redis.zcard("#{model_name}:ids").to_i
       end
 
-      def all(options = nil)
-        if options && options.is_a?(Hash)
-          if options[:limit] && options[:offset]
-            $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [options[:offset].to_i, options[:limit].to_i])            
-          elsif options[:limit]
-            # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
-            $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [0, options[:limit].to_i])
-          end
-          #prepared_index = options.to_a.sort{|n,m| n[0] <=> m[0]}.inject([model_name]) do |sum, option|
-          #  sum += [option[0], option[1]]
-          #end.join(':')
-          #[$redis.get(prepared_index)].compact.collect{|id| find(id)}
+      def all(options = {})
+        if options[:limit] && options[:offset]
+          $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [options[:offset].to_i, options[:limit].to_i])            
+        elsif options[:limit]
+          # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
+          $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [0, options[:limit].to_i])          
         else
           $redis.zrange("#{model_name}:ids", 0, -1).compact.collect{|id| find(id)} # TODO add conditions
         end
