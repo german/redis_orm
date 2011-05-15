@@ -203,7 +203,7 @@ puts 'assoc_with_record.send(model_name.to_sym) - ' + assoc_with_record.send(mod
         $redis.zcard("#{model_name}:ids").to_i
       end
 
-      def all(options = {})
+      def all(options = nil)
         if options && options.is_a?(Hash)
           if options[:limit]
             # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
