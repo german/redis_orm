@@ -7,13 +7,21 @@ require 'active_support/core_ext/string/inflections'
 module RedisOrm
   module Associations
     class HasMany
-      def initialize(reciever_model_name, reciever_id, records)
-        @records = records.to_a
+      def initialize(reciever_model_name, reciever_id, foreign_models)
+        @records = [] #records.to_a
         @reciever_model_name = reciever_model_name
         @reciever_id = reciever_id
+        @foreign_models = foreign_models
+        @fetched = false
+      end
+
+      def fetch
+        @records = @foreign_models.to_s.singularize.capitalize.constantize.find($redis.zrevrange "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}", Time.now, 0)
+        @fetched = true
       end
 
       def [](index)
+        fetch if !@fetched
         @records[index]
       end
 
@@ -22,7 +30,7 @@ module RedisOrm
       def <<(new_records)
         new_records.to_a.each do |record|
           #puts 'record - ' + record.inspect
-          $redis.sadd("#{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize}", record.id)
+          $redis.zadd("#{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize}", record.id)
           #puts "smembers #{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize} - " + $redis.smembers("#{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize}").inspect
 
           #puts 'record.get_associations ' + record.get_associations.inspect
@@ -36,7 +44,7 @@ module RedisOrm
             # $redis.sadd("#{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize}", record.id)
             # or mode DRY
             #record.send(@reciever_model_name.pluralize.to_sym).send(:"<<", self)
-            $redis.sadd("#{record.model_name}:#{record.id}:#{@reciever_model_name}", @reciever_id)
+            $redis.zadd("#{record.model_name}:#{record.id}:#{@reciever_model_name}", @reciever_id)
 
             #puts 'record.model_name - ' + record.model_name.inspect
             #puts '@@associations[record.model_name] ' + @@associations[record.model_name].inspect
@@ -54,7 +62,26 @@ module RedisOrm
         end
       end
 
+      def all(options = {})
+        if options[:limit] && options[:offset]
+          # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
+          record_ids = $redis.zrevrangebyscore("#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}", Time.now, 0, :limit => [options[:offset].to_i, options[:limit].to_i])
+          @records = record_ids.each{|id| @foreign_models.to_s.singularize.capitalize.constantize.find(id) }
+          @fetched = true
+        elsif options[:limit]
+          record_ids = $redis.zrevrangebyscore("#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}", Time.now, 0, :limit => [0, options[:limit].to_i])
+          @records = record_ids.each{|id| @foreign_models.to_s.singularize.capitalize.constantize.find(id) }
+          @fetched = true
+        else
+          fetch if !@fetched
+          @records
+        end
+      end
+
+      alias :find :all
+
       def method_missing(method_name, *args, &block)
+        fetch if !@fetched
         @records.send(method_name, *args, &block)        
       end
     end
@@ -149,8 +176,9 @@ puts 'assoc_with_record.send(model_name.to_sym) - ' + assoc_with_record.send(mod
         @@associations[model_name] << {:type => :has_many, :foreign_models => foreign_models, :options => options}
 
         define_method foreign_models.to_sym do
-          records = foreign_models.to_s.singularize.capitalize.constantize.find($redis.smembers "#{model_name}:#{@id}:#{foreign_models}")
-          Associations::HasMany.new(model_name, id, records)
+          #records = foreign_models.to_s.singularize.capitalize.constantize.find($redis.smembers "#{model_name}:#{@id}:#{foreign_models}")
+          #Associations::HasMany.new(model_name, id, records)
+          Associations::HasMany.new(model_name, id, foreign_models)
         end
       end
 
@@ -205,9 +233,11 @@ puts 'assoc_with_record.send(model_name.to_sym) - ' + assoc_with_record.send(mod
 
       def all(options = {})
         if options && options.is_a?(Hash)
-          if options[:limit]
+          if options[:limit] && options[:offset]
+            $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [options[:offset].to_i, options[:limit].to_i])            
+          elsif options[:limit]
             # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
-            $redis.zrevrangebyscore("#{model_name}:ids", 0, -1, )
+            $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [0, options[:limit].to_i])
           end
           #prepared_index = options.to_a.sort{|n,m| n[0] <=> m[0]}.inject([model_name]) do |sum, option|
           #  sum += [option[0], option[1]]
