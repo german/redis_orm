@@ -231,7 +231,7 @@ puts 'assoc_with_record.send(model_name.to_sym) - ' + assoc_with_record.send(mod
         $redis.zcard("#{model_name}:ids").to_i
       end
 
-      def all(options = {})
+      def all(options = nil)
         if options && options.is_a?(Hash)
           if options[:limit] && options[:offset]
             $redis.zrevrangebyscore("#{model_name}:ids", Time.now, 0, :limit => [options[:offset].to_i, options[:limit].to_i])            
