@@ -110,14 +110,20 @@ module RedisOrm
       def belongs_to(foreign_model, options = {})
         @@associations[model_name] << {:type => :belongs_to, :foreign_model => foreign_model, :options => options}
 
-        define_method foreign_model.to_sym do
+        foreign_model_name = if options[:as]
+          options[:as].to_sym
+        else
+          foreign_model.to_sym
+        end
+
+        define_method foreign_model_name.to_sym do
           foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model}")
           #Associations::BelongsTo.new(model_name, id, records)
         end
 
         # look = Look.create :title => 'test'
         # look.user = User.find(1) => look:23:user => 1
-        define_method "#{foreign_model}=" do |assoc_with_record|
+        define_method "#{foreign_model_name}=" do |assoc_with_record|
           $redis.set("#{model_name}:#{id}:#{assoc_with_record.model_name}", assoc_with_record.id)
 
           # check whether *assoc_with_record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
@@ -164,8 +170,8 @@ module RedisOrm
         define_method "#{foreign_model_name}=" do |assoc_with_record|
           $redis.set("#{model_name}:#{id}:#{assoc_with_record.model_name}", assoc_with_record.id)
 
-puts 'assoc_with_record.model_name - ' + assoc_with_record.model_name.inspect
-puts '@@associations[assoc_with_record.model_name] ' + @@associations[assoc_with_record.model_name].inspect
+#puts 'assoc_with_record.model_name - ' + assoc_with_record.model_name.inspect
+#puts '@@associations[assoc_with_record.model_name] ' + @@associations[assoc_with_record.model_name].inspect
 
           # check whether *assoc_with_record* object has *belongs_to* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
           if @@associations[assoc_with_record.model_name].detect{|h| [:belongs_to, :has_one].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
