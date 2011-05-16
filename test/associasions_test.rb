@@ -15,10 +15,13 @@ end
 
 describe "check associations" do
   before(:all) do
-    $redis_pid = spawn 'redis-server', :out=>"/dev/null"
+    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
+    $redis_pid = spawn 'redis-server ' + path_to_conf, :out=>"/dev/null"
     sleep(1)
     puts 'started - ' + $redis_pid.to_s
-    $redis = Redis.new(:host => 'localhost', :port => 6379)
+    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
+    puts 'path_to_socket - ' + path_to_socket.inspect
+    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)#:port => 6379)
   end
   
   before(:each) do
@@ -71,10 +74,22 @@ describe "check associations" do
     @article.comments.size.should == 2
     
     @comment1.destroy
-    puts "article:#{@article.id}:comments" + $redis.smembers("article:#{@article.id}:comments").inspect
 
     @article.comments.size.should == 1
 
     Comment.count.should == 1
+  end
+
+  it "should leave associations when parent has been deleted (nullify assocs)" do
+    Comment.count.should == 2
+    @article.comments << [@comment1, @comment2]
+    #@article.comments.should be_kind_of(Array)
+    @article.comments.size.should == 2
+    
+    @article.destroy
+
+    Article.count.should == 0
+
+    Comment.count.should == 2
   end
 end

@@ -9,10 +9,17 @@ end
 
 describe "check basic functionality" do
   before(:all) do
-    $redis_pid = spawn 'redis-server', :out=>"/dev/null"
+    #$redis_pid = spawn 'redis-server', :out=>"/dev/null"
+    #sleep(1)
+    #puts 'started - ' + $redis_pid.to_s
+    #$redis = Redis.new(:host => 'localhost', :port => 6379)
+    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
+    $redis_pid = spawn 'redis-server ' + path_to_conf, :out=>"/dev/null"
     sleep(1)
     puts 'started - ' + $redis_pid.to_s
-    $redis = Redis.new(:host => 'localhost', :port => 6379)
+    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
+    puts 'path_to_socket - ' + path_to_socket.inspect
+    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)#:port => 6379)
   end
   
   before(:each) do
