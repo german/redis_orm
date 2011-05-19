@@ -3,6 +3,8 @@ require 'active_support/inflector/transliterate'
 require 'active_support/inflector/methods'
 require 'active_support/inflections'
 require 'active_support/core_ext/string/inflections'
+require 'active_support/core_ext/time/calculations' # local_time for to_time(:local)
+require 'active_support/core_ext/string/conversions' # to_time
 
 module RedisOrm
   module Associations
@@ -184,17 +186,13 @@ module RedisOrm
         # user.profile = profile => user:23:profile => 1
         define_method "#{foreign_model_name}=" do |assoc_with_record|
           # we need to store this to clear old associations later
-          old_assoc = self.send(assoc_with_record.model_name)
-          #puts 'old_assoc - ' + old_assoc.inspect
+          old_assoc = self.send(foreign_model_name)
 
           if assoc_with_record.model_name == foreign_model.to_s
             $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
           else
             raise TypeMismatchError
           end
-
-#puts 'assoc_with_record.model_name - ' + assoc_with_record.model_name.inspect
-#puts '@@associations[assoc_with_record.model_name] ' + @@associations[assoc_with_record.model_name].inspect
 
           # check whether *assoc_with_record* object has *belongs_to* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
           if @@associations[assoc_with_record.model_name].detect{|h| [:belongs_to, :has_one].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
@@ -214,10 +212,16 @@ module RedisOrm
       end
 
       def property(property_name, class_name)
-        @@properties[model_name] << property_name
+        @@properties[model_name] << {:name => property_name, :class => class_name.to_s}
 
         send(:define_method, property_name) do
-          instance_variable_get(:"@#{property_name}")
+          value = instance_variable_get(:"@#{property_name}")
+          if Time == class_name
+            value = value.to_s.to_time(:local)
+          elsif Integer == class_name
+            value = value.to_i
+          end
+          value
         end
 
         send(:define_method, :"#{property_name}=") do |value|
@@ -334,8 +338,9 @@ module RedisOrm
       instance_variable_set(:"@id", id.to_i) if id
 
       if hash && hash.is_a?(Hash)
-        @@properties[model_name].each do |prop|          
-          instance_variable_set(:"@#{prop}", hash[prop.to_s]) if hash[prop.to_s]
+        @@properties[model_name].each do |prop|
+          property_name = prop[:name].to_s
+          instance_variable_set(:"@#{property_name}", hash[property_name]) if hash[property_name]
         end
       end
       self
@@ -354,15 +359,22 @@ module RedisOrm
         @id = $redis.incr("#{model_name}:id")
         $redis.zadd "#{model_name}:ids", Time.now.to_i, @id
         @persisted = true
+
+        if @@properties[model_name].detect{|p| p[:name] == :created_at }
+          self.created_at = Time.now
+        end
       end
 
       @@callbacks[model_name][:before_save].each do |callback|
         self.send(callback)
       end
 
+      if @@properties[model_name].detect{|p| p[:name] == :modified_at }
+        self.modified_at = Time.now
+      end
+
       @@properties[model_name].each do |prop|
-        #puts 'self.send(prop.to_sym) - ' + self.send(prop.to_sym).to_s
-        $redis.hset("#{model_name}:#{id}", prop.to_s, self.send(prop.to_sym))
+        $redis.hset("#{model_name}:#{id}", prop[:name].to_s, self.send(prop[:name].to_sym))
       end
 
       # save indices in order to sort by finders
