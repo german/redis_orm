@@ -68,11 +68,18 @@ module RedisOrm
 
       alias :find :all
 
+      def count
+        $redis.zcard "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
+      end
+
       def method_missing(method_name, *args, &block)
         fetch if !@fetched
         @records.send(method_name, *args, &block)        
       end
     end
+  end
+
+  class TypeMismatchError < StandardError
   end
 
   class Base
@@ -117,14 +124,17 @@ module RedisOrm
         end
 
         define_method foreign_model_name.to_sym do
-          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model}")
-          #Associations::BelongsTo.new(model_name, id, records)
+          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
         end
 
         # look = Look.create :title => 'test'
         # look.user = User.find(1) => look:23:user => 1
         define_method "#{foreign_model_name}=" do |assoc_with_record|
-          $redis.set("#{model_name}:#{id}:#{assoc_with_record.model_name}", assoc_with_record.id)
+          if assoc_with_record.model_name == foreign_model.to_s
+            $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
+          else
+            raise TypeMismatchError
+          end
 
           # check whether *assoc_with_record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
           if @@associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)            
@@ -138,6 +148,8 @@ module RedisOrm
       end
 
       # user.avatars => user:1:avatars => [1, 22, 234] => Avatar.find([1, 22, 234])
+      # options
+      #   *:dependant* key: either *destroy* or *nullify* (default)
       def has_many(foreign_models, options = {})
         @@associations[model_name] << {:type => :has_many, :foreign_models => foreign_models, :options => options}
 
@@ -151,7 +163,7 @@ module RedisOrm
       # user.avatars => user:1:avatars => [1, 22, 234] => Avatar.find([1, 22, 234])
       # *options* is a hash and can hold:
       #   *:as* key
-      #   *:dependant* key [:destroy, :nullify]
+      #   *:dependant* key: either *destroy* or *nullify* (default)
       def has_one(foreign_model, options = {})
         @@associations[model_name] << {:type => :has_one, :foreign_model => foreign_model, :options => options}
 
@@ -162,13 +174,17 @@ module RedisOrm
         end
 
         define_method foreign_model_name do
-          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model}")
+          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
         end     
 
         # profile = Profile.create :title => 'test'
         # user.profile = profile => user:23:profile => 1
         define_method "#{foreign_model_name}=" do |assoc_with_record|
-          $redis.set("#{model_name}:#{id}:#{assoc_with_record.model_name}", assoc_with_record.id)
+          if assoc_with_record.model_name == foreign_model.to_s
+            $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
+          else
+            raise TypeMismatchError
+          end
 
 #puts 'assoc_with_record.model_name - ' + assoc_with_record.model_name.inspect
 #puts '@@associations[assoc_with_record.model_name] ' + @@associations[assoc_with_record.model_name].inspect
@@ -196,6 +212,16 @@ module RedisOrm
 
       def count
         $redis.zcard("#{model_name}:ids").to_i
+      end
+
+      def first
+        id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_i, :limit => [0, 1])
+        id.empty? ? nil : find(id[0])
+      end
+
+      def last
+        id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => [0, 1])
+        id.empty? ? nil : find(id[0])
       end
 
       def all(options = {})
@@ -323,7 +349,13 @@ module RedisOrm
         self.send(callback)
       end
 
-      # also we need to delete associations
+      @@properties[model_name].each do |prop|
+        $redis.hdel("#{model_name}:#{@id}", prop.to_s)
+      end
+
+      $redis.zrem "#{model_name}:ids", @id
+
+      # also we need to delete *links* to associated records
       if !@@associations[model_name].empty?
         @@associations[model_name].each do |assoc|
 
@@ -342,43 +374,57 @@ module RedisOrm
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
               records << self.send(foreign_model_name)
 
-              puts "TODO"
+              $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
             when :has_many
               foreign_model = assoc[:foreign_models].to_s.singularize
               foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_models]
-              records = self.send(foreign_models_name)
+              records += self.send(foreign_models_name)
+
               # delete all members             
-              $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_i
+              $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_i              
           end
 
 puts 'from destroy foreign_model - ' + foreign_model.inspect
-puts 'from destroy records - ' + records.inspect
+if !records.empty?
+  puts 'from destroy records[0] - ' + records[0].inspect
+end
 puts 'from destroy records.compact.empty? - ' + records.compact.empty?.inspect
 
           # check whether foreign_model also has an assoc to the destroying record
           # and remove an id of destroing record from each of associated sets
           if !records.compact.empty?
             records.compact.each do |record|
+              # we make 3 different checks rather then 1 with elsif to ensure that all associations will be processed
+              # it's covered in test/option_test in "should delete link to associated record when record was deleted" scenario
+              # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
+              # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
               if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.to_sym}
                 puts 'from destr :belongs_to - ' + "#{foreign_model}:#{record.id}:#{model_name}"
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
-              elsif @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
+              end
+              
+              if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
                 puts 'from destr :has_one - ' + "#{foreign_model}:#{record.id}:#{model_name}"
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
-              elsif @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
+              end
+
+              if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
                 puts "from destr :has_many - " + "#{foreign_model}:#{record.id}:#{model_name.pluralize}"
                 $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.pluralize}", @id
               end
             end
           end
+
+          if assoc[:options][:dependant] == :destroy
+            puts 'assoc[:options][:dependant] - ' + assoc[:options][:dependant].inspect
+            puts 'records.size - ' + records.size.inspect
+            records.each do |r|
+              puts 'r - ' + r.inspect
+              r.destroy
+            end
+          end
         end
-      end
-
-      @@properties[model_name].each do |prop|
-        $redis.hdel("#{model_name}:#{@id}", prop.to_s)
-      end
-
-      $redis.zrem "#{model_name}:ids", @id
+      end      
 
       # we need to ensure that smembers are correct after removal of the record
       @@indices[model_name].each do |index|

@@ -4,13 +4,28 @@ require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
 class Album < RedisOrm::Base
   property :title, String
 
-  has_many :photos
+  has_one :photo, :as => :front_photo
+  has_many :photos, :dependant => :destroy
+end
+
+class Category < RedisOrm::Base
+  property :title, String
+
+  has_many :photos, :dependant => :nullify
 end
 
 class Photo < RedisOrm::Base
   property :image, String
   
   belongs_to :album
+  belongs_to :user
+  belongs_to :category
+end
+
+class User < RedisOrm::Base
+  property :name, String
+  
+  has_one :photo, :dependant => :destroy
 end
 
 describe "check associations" do
@@ -57,8 +72,8 @@ describe "check associations" do
     @photo2.image.should == "boobs.jpg"
   end
 
-  it "should be empty" do
-    @album.photos.size.should == 0
+  it "should return correct array when :limit and :offset options are provided" do
+    @album.photos.count.should == 0
 
     @album.photos.all(:limit => 2, :offset => 0).should == []
 
@@ -71,5 +86,67 @@ describe "check associations" do
     @album.photos.all(:limit => 0, :offset => 0).should == []
     @album.photos.all(:limit => 1, :offset => 1).size.should == 1 # [@photo2]
     @album.photos.all(:limit => 2, :offset => 2).should == []
+
+    # testing *find* alias to *all*
+    @album.photos.find(:limit => 1, :offset => 1).size.should == 1 
+  end
+
+  it "should delete associated records when :dependant => :destroy in *has_many* assoc" do
+    @album.photos << [@photo1, @photo2]
+
+    @album.photos.count.should == 2
+
+    Photo.count.should == 2
+    @album.destroy
+    Photo.count.should == 0
+    Album.count.should == 0
+  end
+
+  it "should *NOT* delete associated records when :dependant => :nullify or empty in *has_many* assoc" do
+    Photo.count.should == 2
+
+    category = Category.new
+    category.title = "cats"
+    category.save
+
+    Category.count.should == 1
+
+    category.photos << [@photo1, @photo2]
+    category.photos.count.should == 2
+
+    category.destroy
+
+    Photo.count.should == 2
+    Category.count.should == 0
+  end
+
+  it "should delete associated records when :dependant => :destroy and leave them otherwise in *has_one* assoc" do
+    user = User.new
+    user.name = "Dmitrii Samoilov"
+    user.save
+    user.should be
+
+    user.photo = @photo1
+
+    user.photo.id.should == @photo1.id
+
+    User.count.should == 1
+    Photo.count.should == 2
+    user.destroy
+    Photo.count.should == 1
+    User.count.should == 0
+  end
+
+  it "should delete link to associated record when record was deleted" do
+    @album.photos << [@photo1, @photo2]
+
+    @album.photos.count.should == 2
+
+    Photo.count.should == 2
+    @photo1.destroy
+    Photo.count.should == 1
+    
+    @album.photos.count.should == 1
+    @album.photos.size.should == 1
   end
 end

@@ -2,7 +2,7 @@ module RedisOrm
   module Utils
     def score(string)
       base = '1.'
-      base.<< string.split("").collect{|c| '%03d' % c.unpack('c')}[0...6].join
+      base.<< string.unpack("U*").map{|c| "%05i" % c}.join
     end
   end
 end

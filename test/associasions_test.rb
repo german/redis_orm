@@ -60,7 +60,10 @@ describe "check associations" do
   it "should return array" do
     @article.comments << [@comment1, @comment2]
     #@article.comments.should be_kind_of(Array)
+
+    @article.comments.count.should == 2    
     @article.comments.size.should == 2
+
     @comment1.article.should be
     @comment2.article.should be
 
@@ -76,7 +79,7 @@ describe "check associations" do
     @comment1.destroy
 
     @article.comments.size.should == 1
-
+    @article.comments.count.should == 1
     Comment.count.should == 1
   end
 
@@ -85,6 +88,7 @@ describe "check associations" do
     @article.comments << [@comment1, @comment2]
     #@article.comments.should be_kind_of(Array)
     @article.comments.size.should == 2
+    @article.comments.count.should == 2
     
     @article.destroy
 

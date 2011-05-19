@@ -86,4 +86,30 @@ describe "check basic functionality" do
     user.destroy
     User.count.should == 0
   end
+
+  it "should return first and last objects" do
+    User.count.should == 0
+    User.first.should == nil
+    User.last.should == nil
+
+    user1 = User.new
+    user1.name = "german"
+    user1.save
+    user1.should be
+    user1.name.should == "german"
+
+    user2 = User.new
+    user2.name = "nobody"
+    user2.save
+    user2.should be
+    user2.name.should == "nobody"
+
+    User.count.should == 2
+
+    User.first.should be
+    User.last.should be
+
+    User.first.id.should == user1.id
+    User.last.id.should  == user2.id
+  end
 end
