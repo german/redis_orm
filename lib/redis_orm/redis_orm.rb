@@ -82,6 +82,9 @@ module RedisOrm
   class TypeMismatchError < StandardError
   end
 
+  class ArgumentsMismatch < StandardError
+  end
+
   class Base
     include ActiveModelBehavior
 
@@ -268,6 +271,39 @@ module RedisOrm
           obj.send(:key, value) if obj.respond_to?(:key)
         end
       end
+
+      # dynamic finders
+      def method_missing(method_name, *args, &block)
+        if method_name =~ /^find_by_(\w*)/
+          record = nil
+          if $1
+            properties = $1.split('_and_')
+            raise ArgumentsMismatch if properties.size != args.size            
+            properties.each_with_index do |prop, i|
+              keys = $redis.keys "#{model_name}:#{prop}:#{args[i].to_s}"              
+              record = model_name.to_s.camelize.constantize.find($redis.get(keys[0])) if !keys.empty?
+            end
+          end
+          record
+        elsif method_name =~ /^find_all_by_(\w*)/
+          records = []
+          if $1
+            properties = $1.split('_and_')
+            raise ArgumentsMismatch if properties.size != args.size            
+            properties.each_with_index do |prop, i|
+              keys = $redis.keys "#{model_name}:#{prop}:#{args[i].to_s}"
+              if !keys.empty?
+                keys.each do |key|
+                  records << model_name.to_s.camelize.constantize.find($redis.get(keys[0]))
+                end
+              end
+            end
+          end
+          records
+        else
+          nil
+        end
+      end
     end
 
     # could be invoked from has_many module (<< method)
@@ -317,8 +353,8 @@ module RedisOrm
         $redis.hset("#{model_name}:#{id}", prop.to_s, self.send(prop.to_sym))
       end
 
-      # TODO make correct indices
       # save indices in order to sort by finders
+      # city:name:Харьков => 1
       @@indices[model_name].each do |index|
         if index.is_a?(Array) # TODO sort alphabetically
           prepared_index = index.inject([model_name]) do |sum, index_part|
