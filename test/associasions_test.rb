@@ -3,15 +3,24 @@ require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
 
 class Article < RedisOrm::Base
   property :title, String
-
   has_many :comments
 end
 
 class Comment < RedisOrm::Base
   property :body, String
-  
   belongs_to :article
 end
+
+class Profile < RedisOrm::Base
+  property :title, String
+  has_one :city
+end
+
+class City < RedisOrm::Base
+  property :name, String
+  has_many :profiles
+end
+
 
 describe "check associations" do
   before(:all) do
@@ -95,5 +104,31 @@ describe "check associations" do
     Article.count.should == 0
 
     Comment.count.should == 2
+  end
+
+  it "should remove old associations and create new ones" do
+    profile = Profile.new
+    profile.title = "test"
+    profile.save
+
+    chicago = City.new
+    chicago.name = "Chicago"
+    chicago.save
+    
+    washington = City.new
+    washington.name = "Washington"
+    washington.save
+
+    profile.city = chicago
+    profile.city.name.should == "Chicago"
+    chicago.profiles.count.should == 1
+    washington.profiles.count.should == 0
+    chicago.profiles[0].id.should == profile.id
+
+    profile.city = washington
+    profile.city.name.should == "Washington"
+    chicago.profiles.count.should == 0
+    washington.profiles.count.should == 1
+    washington.profiles[0].id.should == profile.id
   end
 end

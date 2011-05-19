@@ -104,7 +104,7 @@ module RedisOrm
         @@callbacks[from.model_name][:before_destroy] = []
       end
      
-      def index(name)
+      def index(name, options = {})
         @@indices[model_name] << name
       end
 
@@ -183,6 +183,10 @@ module RedisOrm
         # profile = Profile.create :title => 'test'
         # user.profile = profile => user:23:profile => 1
         define_method "#{foreign_model_name}=" do |assoc_with_record|
+          # we need to store this to clear old associations later
+          old_assoc = self.send(assoc_with_record.model_name)
+          #puts 'old_assoc - ' + old_assoc.inspect
+
           if assoc_with_record.model_name == foreign_model.to_s
             $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
           else
@@ -196,6 +200,14 @@ module RedisOrm
           if @@associations[assoc_with_record.model_name].detect{|h| [:belongs_to, :has_one].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
             assoc_with_record.send("#{model_name}=", self)
           elsif @@associations[assoc_with_record.model_name].detect{|h| :has_many == h[:type] && h[:foreign_models] == model_name.to_s.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
+            # remove old assoc 
+            # $redis.zrank "city:2:profiles", 12                       
+            if old_assoc
+              #puts 'key - ' + "#{assoc_with_record.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}"
+              #puts 'self.id - ' + self.id.to_s
+              $redis.zrem "#{assoc_with_record.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id
+            end
+            # create/add new ones
             assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
           end
         end
@@ -279,9 +291,9 @@ module RedisOrm
           if $1
             properties = $1.split('_and_')
             raise ArgumentsMismatch if properties.size != args.size            
-            properties.each_with_index do |prop, i|
-              keys = $redis.keys "#{model_name}:#{prop}:#{args[i].to_s}"              
-              record = model_name.to_s.camelize.constantize.find($redis.get(keys[0])) if !keys.empty?
+            properties.each_with_index do |prop, i|              
+              id = $redis.get "#{model_name}:#{prop}:#{args[i].to_s}"              
+              record = model_name.to_s.camelize.constantize.find(id) if id
             end
           end
           record
