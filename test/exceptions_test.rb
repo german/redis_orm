@@ -26,9 +26,7 @@ describe "exceptions test" do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
     $redis_pid = spawn 'redis-server ' + path_to_conf, :out=>"/dev/null"
     sleep(1)
-    puts 'started - ' + $redis_pid.to_s
     path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    puts 'path_to_socket - ' + path_to_socket.inspect
     $redis = Redis.new(:host => 'localhost', :path => path_to_socket)#:port => 6379)
   end
   
@@ -41,7 +39,6 @@ describe "exceptions test" do
   end
 
   after(:all) do
-    puts 'finish - ' + $redis_pid.to_s
     if $redis_pid
       Process.kill 9, $redis_pid.to_i
     end

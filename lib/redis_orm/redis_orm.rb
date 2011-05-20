@@ -81,6 +81,10 @@ module RedisOrm
     end
   end
 
+  # it's raised when found request was initiated on the property/properties which have no index on it
+  class NotIndexFound < StandardError
+  end
+
   class TypeMismatchError < StandardError
   end
 
@@ -106,8 +110,11 @@ module RedisOrm
         @@callbacks[from.model_name][:before_destroy] = []
       end
      
+      # *options* currently supports
+      #   *unique* Boolean
+      #   *case_insencetive* Boolean TODO 
       def index(name, options = {})
-        @@indices[model_name] << name
+        @@indices[model_name] << {:name => name, :options => options}
       end
 
       # class Avatar < RedisOrm::Base
@@ -292,36 +299,54 @@ module RedisOrm
 
       # dynamic finders
       def method_missing(method_name, *args, &block)
-        if method_name =~ /^find_by_(\w*)/
-          record = nil
-          if $1
-            properties = $1.split('_and_')
-            raise ArgumentsMismatch if properties.size != args.size            
-            properties.each_with_index do |prop, i|              
-              id = $redis.get "#{model_name}:#{prop}:#{args[i].to_s}"              
-              record = model_name.to_s.camelize.constantize.find(id) if id
-            end
-          end
-          record
-        elsif method_name =~ /^find_all_by_(\w*)/
-          records = []
-          if $1
-            properties = $1.split('_and_')
-            raise ArgumentsMismatch if properties.size != args.size            
+        if method_name =~ /^find_(all_)?by_(\w*)/
+          prepared_index = model_name.to_s
+          index = if $2
+            properties = $2.split('_and_')
+            raise ArgumentsMismatch if properties.size != args.size
+            
             properties.each_with_index do |prop, i|
-              keys = $redis.keys "#{model_name}:#{prop}:#{args[i].to_s}"
-              if !keys.empty?
-                keys.each do |key|
-                  records << model_name.to_s.camelize.constantize.find($redis.get(keys[0]))
-                end
+              # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
+              raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == prop.to_sym}
+              prepared_index += ":#{prop}:#{args[i].to_s}"
+            end
+
+            @@indices[model_name].detect do |models_index|
+              if models_index[:name].is_a?(Array) && models_index[:name].size == properties.size
+                models_index[:name] == properties.map{|p| p.to_sym}
+              elsif !models_index[:name].is_a?(Array) && properties.size == 1
+                models_index[:name] == properties[0].to_sym
               end
             end
           end
-          records
-        else
-          nil
+
+          raise NotIndexFound if !index
+
+          if method_name =~ /^find_by_(\w*)/                      
+            id = if index[:options][:unique]            
+              $redis.get prepared_index
+            else
+              $redis.zrangebyscore(prepared_index, 0, Time.now.to_i, :limit => [0, 1])[0]
+            end
+            model_name.to_s.camelize.constantize.find(id)
+          elsif method_name =~ /^find_all_by_(\w*)/
+            records = []          
+
+            if index[:options][:unique]            
+              id = $redis.get prepared_index
+              records << model_name.to_s.camelize.constantize.find(id)
+            else
+              ids = $redis.zrangebyscore(prepared_index, 0, Time.now.to_i)
+              records += model_name.to_s.camelize.constantize.find(ids)
+            end          
+
+            records
+          else
+            nil
+          end
         end
       end
+
     end
 
     # could be invoked from has_many module (<< method)
@@ -382,14 +407,18 @@ module RedisOrm
       # save indices in order to sort by finders
       # city:name:Харьков => 1
       @@indices[model_name].each do |index|
-        if index.is_a?(Array) # TODO sort alphabetically
-          prepared_index = index.inject([model_name]) do |sum, index_part|
+        prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
+          index[:name].inject([model_name]) do |sum, index_part|
             sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
           end.join(':')
+        else
+          [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}")].join(':')
+        end
+
+        if index[:options][:unique]
           $redis.set(prepared_index, @id)
         else
-          prepared_index = [model_name, index, self.instance_variable_get(:"@#{index}")].join(':')
-          $redis.set(prepared_index, @id)        
+          $redis.zadd(prepared_index, Time.now.to_i, @id)
         end
       end
 
@@ -446,12 +475,6 @@ module RedisOrm
               $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_i              
           end
 
-puts 'from destroy foreign_model - ' + foreign_model.inspect
-if !records.empty?
-  puts 'from destroy records[0] - ' + records[0].inspect
-end
-puts 'from destroy records.compact.empty? - ' + records.compact.empty?.inspect
-
           # check whether foreign_model also has an assoc to the destroying record
           # and remove an id of destroing record from each of associated sets
           if !records.compact.empty?
@@ -490,14 +513,18 @@ puts 'from destroy records.compact.empty? - ' + records.compact.empty?.inspect
 
       # we need to ensure that smembers are correct after removal of the record
       @@indices[model_name].each do |index|
-        if index.is_a?(Array) # TODO sort alphabetically
-          prepared_index = index.inject([model_name]) do |sum, index_part|
+        prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
+          index[:name].inject([model_name]) do |sum, index_part|
             sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
-          end.join(':')
+          end.join(':')          
+        else
+          [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}")].join(':')
+        end
+
+        if index[:options][:unique]
           $redis.del(prepared_index)
         else
-          prepared_index = [model_name, index, self.instance_variable_get(:"@#{index}")].join(':')
-          $redis.del(prepared_index)
+          $redis.zremrangebyscore(prepared_index, 0, Time.now.to_i)
         end
       end
       
