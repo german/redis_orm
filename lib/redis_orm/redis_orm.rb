@@ -263,21 +263,23 @@ module RedisOrm
         end
       end
 
-      def find(ids)
+      def find(ids)        
         if(ids.is_a?(Array))
+          return [] if ids.empty?
           ids.inject([]) do |array, id|
             record = $redis.hgetall "#{model_name}:#{id}"
             if record && !record.empty?
-              array << new(id, record, true)
+              array << new(record, id, true)
             end
           end
         else
+          return nil if ids.nil?
           id = ids
           record = $redis.hgetall "#{model_name}:#{id}"
           if record && record.empty?
             nil
           else
-            new(id, record, true)
+            new(record, id, true)
           end
         end        
       end
@@ -359,15 +361,14 @@ module RedisOrm
       @@associations[self.model_name]
     end
 
-    def initialize(id = nil, hash = nil, persisted = false)
+    def initialize(attributes = {}, id = nil, persisted = false)
       @persisted = persisted
       
       instance_variable_set(:"@id", id.to_i) if id
 
-      if hash && hash.is_a?(Hash)
-        @@properties[model_name].each do |prop|
-          property_name = prop[:name].to_s
-          instance_variable_set(:"@#{property_name}", hash[property_name]) if hash[property_name]
+      if attributes.is_a?(Hash) && !attributes.empty?        
+        attributes.each do |key, value|
+          self.send("#{key}=".to_sym, value) if self.respond_to?("#{key}=".to_sym)
         end
       end
       self
@@ -433,6 +434,7 @@ module RedisOrm
           self.send("#{key}=".to_sym, value) if self.respond_to?("#{key}=".to_sym)
         end
       end
+      save
     end
 
     def destroy
