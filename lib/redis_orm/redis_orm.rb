@@ -220,6 +220,8 @@ module RedisOrm
             value = value.to_s.to_time(:local)
           elsif Integer == class_name
             value = value.to_i
+          elsif Float == class_name
+            value = value.to_f
           end
           value
         end

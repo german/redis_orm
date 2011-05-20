@@ -4,7 +4,10 @@ require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
 class User < RedisOrm::Base
   property :name, String
   property :age, Integer
+  property :wage, Float
+
   property :created_at, Time
+  property :modified_at, Time
 end
 
 describe "check basic functionality" do
@@ -111,5 +114,26 @@ describe "check basic functionality" do
 
     User.first.id.should == user1.id
     User.last.id.should  == user2.id
+  end
+
+  it "should return values with correct classes" do
+    user = User.new
+    user.name = "german"
+    user.age = 26
+    user.wage = 124.34
+    user.save
+
+    user.should be
+
+    u = User.first
+
+    u.created_at.class.should == Time
+    u.modified_at.class.should == Time
+    u.wage.class.should == Float
+    u.age.class.to_s.should match(/Integer|Fixnum/)
+
+    u.name.should == "german"
+    u.wage.should == 124.34
+    u.age.should  == 26
   end
 end
