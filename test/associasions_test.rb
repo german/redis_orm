@@ -4,6 +4,7 @@ require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
 class Article < RedisOrm::Base
   property :title, String
   has_many :comments
+  has_many :categories
 end
 
 class Comment < RedisOrm::Base
@@ -21,15 +22,17 @@ class City < RedisOrm::Base
   has_many :profiles
 end
 
+class Category < RedisOrm::Base
+  property :name, String
+  has_many :articles
+end
 
 describe "check associations" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
     $redis_pid = spawn 'redis-server ' + path_to_conf, :out=>"/dev/null"
     sleep(1)
-    puts 'started - ' + $redis_pid.to_s
     path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    puts 'path_to_socket - ' + path_to_socket.inspect
     $redis = Redis.new(:host => 'localhost', :path => path_to_socket)#:port => 6379)
   end
   
@@ -60,7 +63,6 @@ describe "check associations" do
   end
 
   after(:all) do
-    puts 'finish - ' + $redis_pid.to_s
     if $redis_pid
       Process.kill 9, $redis_pid.to_i
     end
@@ -95,6 +97,8 @@ describe "check associations" do
   it "should leave associations when parent has been deleted (nullify assocs)" do
     Comment.count.should == 2
     @article.comments << [@comment1, @comment2]
+    @comment1.article.id.should == @article.id
+    @comment2.article.id.should == @article.id
     #@article.comments.should be_kind_of(Array)
     @article.comments.size.should == 2
     @article.comments.count.should == 2
@@ -104,6 +108,48 @@ describe "check associations" do
     Article.count.should == 0
 
     Comment.count.should == 2
+  end
+
+  it "should replace associations when '=' is used instead of '<<' " do
+    Comment.count.should == 2
+    @article.comments << [@comment1, @comment2]
+    @comment1.article.id.should == @article.id
+    @comment2.article.id.should == @article.id
+    @article.comments.size.should == 2
+    @article.comments.count.should == 2
+    
+    @article.comments = [@comment1]
+    @article.comments.count.should == 1
+    @article.comments.first.id.should == @comment1.id
+
+    @comment1.article.id.should == @article.id
+  end
+
+  it "should correctly use many-to-many associations both with '=' and '<<' " do
+    @cat1 = Category.create :name => "Nature"
+    @cat2 = Category.create :name => "Art"
+    @cat1.name.should == "Nature"
+    @cat2.name.should == "Art"
+    @article.categories << [@cat1, @cat2]
+
+    @cat1.articles.count.should == 1
+    @cat1.articles[0].id.should == @article.id
+    @cat2.articles.count.should == 1
+    @cat2.articles[0].id.should == @article.id
+
+    @article.categories.size.should == 2
+    @article.categories.count.should == 2
+    
+    @article.categories = [@cat1]
+    @article.categories.count.should == 1
+    @article.categories[0].id.should == @cat1.id
+    @cat1.articles.count.should == 1
+    @cat1.articles[0].id.should == @article.id
+    @cat2.articles.count.should == 0
+
+    @cat1.destroy
+    Category.count.should == 1
+    @article.categories.count.should == 0
   end
 
   it "should remove old associations and create new ones" do
