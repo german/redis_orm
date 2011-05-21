@@ -171,13 +171,15 @@ module RedisOrm
         # user = User.find(1)
         # user.avatars = Avatar.find(23) => user:1:avatars => [23]
         define_method "#{foreign_models}=" do |records|
-          # clear old assocs
+          # clear old assocs from related models side
           self.send(foreign_models).to_a.each do |record|
             $redis.zrem "#{record.model_name}:#{record.id}:#{model_name.pluralize}", id
           end
 
+          # clear old assocs from this model side
+          $redis.zremrangebyscore "#{model_name}:#{id}:#{records[0].model_name.pluralize}", 0, Time.now.to_i
+
           records.to_a.each do |record|
-            $redis.zremrangebyscore "#{model_name}:#{id}:#{record.model_name.pluralize}", 0, Time.now.to_i
             $redis.zadd("#{model_name}:#{id}:#{record.model_name.pluralize}", Time.now.to_i, record.id)
 
             # article.comments = [comment1, comment2] 

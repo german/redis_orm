@@ -128,8 +128,12 @@ describe "check associations" do
   it "should correctly use many-to-many associations both with '=' and '<<' " do
     @cat1 = Category.create :name => "Nature"
     @cat2 = Category.create :name => "Art"
+    @cat3 = Category.create :name => "Web"
+
     @cat1.name.should == "Nature"
     @cat2.name.should == "Art"
+    @cat3.name.should == "Web"
+
     @article.categories << [@cat1, @cat2]
 
     @cat1.articles.count.should == 1
@@ -140,16 +144,22 @@ describe "check associations" do
     @article.categories.size.should == 2
     @article.categories.count.should == 2
     
-    @article.categories = [@cat1]
-    @article.categories.count.should == 1
-    @article.categories[0].id.should == @cat1.id
+    @article.categories = [@cat1, @cat3]
+    @article.categories.count.should == 2
+    @article.categories.map{|c| c.id}.include?(@cat1.id).should be
+    @article.categories.map{|c| c.id}.include?(@cat3.id).should be
+
     @cat1.articles.count.should == 1
     @cat1.articles[0].id.should == @article.id
+
+    @cat3.articles.count.should == 1
+    @cat3.articles[0].id.should == @article.id
+
     @cat2.articles.count.should == 0
 
     @cat1.destroy
-    Category.count.should == 1
-    @article.categories.count.should == 0
+    Category.count.should == 2
+    @article.categories.count.should == 1
   end
 
   it "should remove old associations and create new ones" do
