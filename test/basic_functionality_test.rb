@@ -5,6 +5,17 @@ class User < RedisOrm::Base
   property :name, String
   property :age, Integer
   property :wage, Float
+  property :male, RedisOrm::Boolean
+
+  property :created_at, Time
+  property :modified_at, Time
+end
+
+class DefaultUser < RedisOrm::Base
+  property :name, String, :default => "german"
+  property :age, Integer, :default => 26
+  property :wage, Float, :default => 256.25
+  property :male, RedisOrm::Boolean, :default => true
 
   property :created_at, Time
   property :modified_at, Time
@@ -107,6 +118,7 @@ describe "check basic functionality" do
     user.name = "german"
     user.age = 26
     user.wage = 124.34
+    user.male = true
     user.save
 
     user.should be
@@ -116,10 +128,31 @@ describe "check basic functionality" do
     u.created_at.class.should == Time
     u.modified_at.class.should == Time
     u.wage.class.should == Float
+    u.male.class.to_s.should match(/TrueClass|FalseClass/)
     u.age.class.to_s.should match(/Integer|Fixnum/)
 
     u.name.should == "german"
     u.wage.should == 124.34
     u.age.should  == 26
+    u.male.should == true
+  end
+
+  it "should return correct saved defaults" do
+    DefaultUser.count.should == 0
+    DefaultUser.create
+    DefaultUser.count.should == 1
+
+    u = DefaultUser.first
+
+    u.created_at.class.should == Time
+    u.modified_at.class.should == Time
+    u.wage.class.should == Float
+    u.male.class.to_s.should match(/TrueClass|FalseClass/)
+    u.age.class.to_s.should match(/Integer|Fixnum/)
+
+    u.name.should == "german"
+    u.male.should == true
+    u.age.should  == 26
+    u.wage.should == 256.25
   end
 end

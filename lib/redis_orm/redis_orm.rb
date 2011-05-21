@@ -7,6 +7,9 @@ require 'active_support/core_ext/time/calculations' # local_time for to_time(:lo
 require 'active_support/core_ext/string/conversions' # to_time
 
 module RedisOrm
+  class Boolean
+  end
+
   module Associations
     class HasMany
       def initialize(reciever_model_name, reciever_id, foreign_models)
@@ -90,7 +93,7 @@ module RedisOrm
 
   class ArgumentsMismatch < StandardError
   end
-
+  
   class Base
     include ActiveModelBehavior
 
@@ -218,17 +221,22 @@ module RedisOrm
         end
       end
 
-      def property(property_name, class_name)
-        @@properties[model_name] << {:name => property_name, :class => class_name.to_s}
+      def property(property_name, class_name, options = {})
+        @@properties[model_name] << {:name => property_name, :class => class_name.to_s, :options => options}
 
         send(:define_method, property_name) do
           value = instance_variable_get(:"@#{property_name}")
+
+          return value if value.nil? # we must return nil here so :default option will work when saving
+
           if Time == class_name
             value = value.to_s.to_time(:local)
           elsif Integer == class_name
             value = value.to_i
           elsif Float == class_name
             value = value.to_f
+          elsif RedisOrm::Boolean == class_name
+            value = (value == "false" ? false : true)
           end
           value
         end
@@ -293,10 +301,8 @@ module RedisOrm
       end
 
       def create(options = {})
-        obj = new
-        options.each do |key, value|
-          obj.send(:key, value) if obj.respond_to?(:key)
-        end
+        obj = new(options, nil, false)
+        obj.save
       end
 
       # dynamic finders
@@ -402,7 +408,11 @@ module RedisOrm
       end
 
       @@properties[model_name].each do |prop|
-        $redis.hset("#{model_name}:#{id}", prop[:name].to_s, self.send(prop[:name].to_sym))
+        prop_value = self.send(prop[:name].to_sym)
+        if prop_value.nil? && prop[:options][:default]
+          prop_value = prop[:options][:default]
+        end
+        $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)
       end
 
       # save indices in order to sort by finders
