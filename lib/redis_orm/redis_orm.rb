@@ -547,6 +547,11 @@ module RedisOrm
       save
     end
 
+    def update_attribute(attribute_name, attribute_value)
+      self.send("#{attribute_name}=".to_sym, attribute_value) if self.respond_to?("#{attribute_name}=".to_sym)
+      save
+    end
+
     def destroy
       @@callbacks[model_name][:before_destroy].each do |callback|
         self.send(callback)

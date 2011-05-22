@@ -33,7 +33,7 @@ describe "check associations" do
     end
   end
 
-  it "should change index accordingly to changes" do
+  it "should change index accordingly to the changes in the model" do
     user = User.new :first_name => "Robert", :last_name => "Pirsig"
     user.save
 
@@ -52,7 +52,27 @@ describe "check associations" do
 
     User.find_by_first_name("Chris").id.should == user.id
     User.find_by_last_name("Pirsig").id.should == user.id
-    User.find_by_first_name_and_last_name("Chris", "Pirsig").id.should == user.id
-    
+    User.find_by_first_name_and_last_name("Chris", "Pirsig").id.should == user.id    
+  end
+
+  it "should change index accordingly to the changes in the model (test #update_attributes method)" do
+    user = User.new :first_name => "Robert", :last_name => "Pirsig"
+    user.save
+
+    u = User.find_by_first_name("Robert")
+    u.id.should == user.id
+
+    u = User.find_by_first_name_and_last_name("Robert", "Pirsig")
+    u.id.should == user.id
+
+    u.update_attributes :first_name => "Christofer", :last_name => "Robin"
+
+    User.find_by_first_name("Robert").should == nil
+    User.find_by_last_name("Pirsig").should == nil
+    User.find_by_first_name_and_last_name("Robert", "Pirsig").should == nil
+
+    User.find_by_first_name("Christofer").id.should == user.id
+    User.find_by_last_name("Robin").id.should == user.id
+    User.find_by_first_name_and_last_name("Christofer", "Robin").id.should == user.id    
   end
 end

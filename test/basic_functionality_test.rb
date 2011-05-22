@@ -58,7 +58,7 @@ describe "check basic functionality" do
     User.first.name.should == "german"
   end
 
-  it "test_simple_update" do
+  it "should test different ways to update a record" do
     User.count.should == 0
 
     user = User.new :name => "german"
@@ -72,6 +72,16 @@ describe "check basic functionality" do
 
     User.count.should == 1
     User.first.name.should == "nobody"
+
+    u = User.first
+    u.should be
+    u.update_attribute :name, "root"
+    User.first.name.should == "root"
+
+    u = User.first
+    u.should be
+    u.update_attributes :name => "german"
+    User.first.name.should == "german"
   end
 
   it "test_deletion" do
