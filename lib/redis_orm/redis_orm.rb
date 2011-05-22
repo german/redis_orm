@@ -260,9 +260,22 @@ module RedisOrm
           end
           value
         end
-
+    
         send(:define_method, :"#{property_name}=") do |value|
+          if instance_variable_get(:"@#{property_name}_changes") && !instance_variable_get(:"@#{property_name}_changes").empty?
+            initial_value = instance_variable_get(:"@#{property_name}_changes")[0]
+            instance_variable_set(:"@#{property_name}_changes", [initial_value, value])
+          elsif instance_variable_get(:"@#{property_name}")
+            instance_variable_set(:"@#{property_name}_changes", [self.send(property_name), value])
+          else
+            instance_variable_set(:"@#{property_name}_changes", [value])
+          end
+
           instance_variable_set(:"@#{property_name}", value)
+        end
+  
+        send(:define_method, :"#{property_name}_changes") do
+          instance_variable_get(:"@#{property_name}_changes")
         end
       end
 
@@ -393,6 +406,15 @@ module RedisOrm
       
       instance_variable_set(:"@id", id.to_i) if id
 
+      # when object is created with empty attribute set @#{prop[:name]}_changes array properly
+      @@properties[model_name].each do |prop|
+        if prop[:options][:default]
+          instance_variable_set :"@#{prop[:name]}_changes", [prop[:options][:default]]
+        else
+          instance_variable_set :"@#{prop[:name]}_changes", []
+        end
+      end
+ 
       if attributes.is_a?(Hash) && !attributes.empty?        
         attributes.each do |key, value|
           self.send("#{key}=".to_sym, value) if self.respond_to?("#{key}=".to_sym)
@@ -410,6 +432,55 @@ module RedisOrm
     end
 
     def save
+      if persisted? # then there might be old indices
+        # check whether there's old indices exists and if yes - delete them
+        @@properties[model_name].each do |prop|
+#puts 'prop - ' + prop.inspect
+          prop_changes = instance_variable_get :"@#{prop[:name]}_changes" #self.send "#{prop[:name]}_changes"
+#puts 'prop_changes - ' + prop_changes.inspect
+          next if prop_changes.size < 2
+          prev_prop_value = prop_changes.first
+#puts 'prev_prop_value - ' + prev_prop_value.inspect
+          indices = @@indices[model_name].inject([]) do |sum, models_index|
+            #puts 'models_index - ' + models_index.inspect
+            #puts 'sum - ' + sum.inspect
+            if models_index[:name].is_a?(Array)
+              if models_index[:name].include?(prop[:name])
+                sum << models_index
+              else
+                sum
+              end
+            else
+              if models_index[:name] == prop[:name]
+                sum << models_index
+              else
+                sum
+              end
+            end
+          end
+
+#puts 'indices - ' + indices.inspect
+          if !indices.empty?
+            indices.each do |index|
+              if index[:name].is_a?(Array)
+                keys_to_delete = if index[:name].index(prop) == 0
+                  $redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
+                else
+                  $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
+                end
+                #puts 'keys_to_delete - ' + keys_to_delete.inspect
+                keys_to_delete.each{|key| puts 'key - ' + key.inspect; $redis.del(key)}
+              else
+                key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
+                #puts 'key_to_delete - ' + key_to_delete.inspect
+                #puts ($redis.zrangebyscore key_to_delete, 0, Time.now.to_i).inspect
+                $redis.del key_to_delete
+              end
+            end
+          end
+        end
+      end
+
       if !persisted?
         @id = $redis.incr("#{model_name}:id")
         $redis.zadd "#{model_name}:ids", Time.now.to_i, @id
@@ -430,13 +501,21 @@ module RedisOrm
 
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
+
         if prop_value.nil? && prop[:options][:default]
           prop_value = prop[:options][:default]
         end
+
         $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)
+
+        # reducing @#{prop[:name]}_changes array to last value
+        prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
+        if prop_changes && prop_changes.size > 2
+          instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
+        end
       end
 
-      # save indices in order to sort by finders
+      # save new indices in order to sort by finders
       # city:name:Харьков => 1
       @@indices[model_name].each do |index|
         prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
