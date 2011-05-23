@@ -10,76 +10,6 @@ module RedisOrm
   class Boolean
   end
 
-  module Associations
-    class HasMany
-      def initialize(reciever_model_name, reciever_id, foreign_models)
-        @records = [] #records.to_a
-        @reciever_model_name = reciever_model_name
-        @reciever_id = reciever_id
-        @foreign_models = foreign_models
-        @fetched = false
-      end
-
-      def fetch
-        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}", Time.now.to_i, 0)
-        @fetched = true
-      end
-
-      def [](index)
-        fetch if !@fetched
-        @records[index]
-      end
-
-      # user = User.find(1)
-      # user.avatars << Avatar.find(23) => user:1:avatars => [23]
-      def <<(new_records)
-        new_records.to_a.each do |record|
-          $redis.zadd("#{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize}", Time.now.to_i, record.id)
-
-          # article.comments << [comment1, comment2] 
-          # iterate through the array of comments and create backlink
-          # check whether *record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *record*'s side (in order not to provoke recursion)
-          
-          if record.get_associations.detect{|h| h[:type] == :has_many && h[:foreign_models] == @reciever_model_name.pluralize.to_sym} && !$redis.zrank("#{record.model_name}:#{record.id}:#{@reciever_model_name.pluralize}", @reciever_id) #record.model_name.to_s.camelize.constantize.find(@reciever_id).nil?
-            $redis.zadd("#{record.model_name}:#{record.id}:#{@reciever_model_name.pluralize}", Time.now.to_i, @reciever_id)
-          # check whether *record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *record*'s side (in order not to provoke recursion)
-          elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == @reciever_model_name.to_sym} && record.send(@reciever_model_name.to_sym).nil?
-            
-            $redis.set("#{record.model_name}:#{record.id}:#{@reciever_model_name}", @reciever_id)
-            #record.send("#{@reciever_model_name}=", self)            
-          end
-        end
-      end
-
-      def all(options = {})
-        if options[:limit] && options[:offset]
-          # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
-          record_ids = $redis.zrevrangebyscore("#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}", Time.now.to_i, 0, :limit => [options[:offset].to_i, options[:limit].to_i])
-          @fetched = true
-          @records = @foreign_models.to_s.singularize.camelize.constantize.find(record_ids)
-        elsif options[:limit]
-          record_ids = $redis.zrevrangebyscore("#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}", Time.now.to_i, 0, :limit => [0, options[:limit].to_i])
-          @fetched = true
-          @records = @foreign_models.to_s.singularize.camelize.constantize.find(record_ids)
-        else
-          fetch if !@fetched
-          @records
-        end
-      end
-
-      alias :find :all
-
-      def count
-        $redis.zcard "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
-      end
-
-      def method_missing(method_name, *args, &block)
-        fetch if !@fetched
-        @records.send(method_name, *args, &block)        
-      end
-    end
-  end
-
   # it's raised when found request was initiated on the property/properties which have no index on it
   class NotIndexFound < StandardError
   end
@@ -92,6 +22,10 @@ module RedisOrm
   
   class Base
     include ActiveModelBehavior
+
+    extend Associations::BelongsTo
+    extend Associations::HasMany
+    extend Associations::HasOne
 
     attr_accessor :persisted
 
@@ -111,134 +45,9 @@ module RedisOrm
      
       # *options* currently supports
       #   *unique* Boolean
-      #   *case_insencetive* Boolean TODO 
+      #   *case_insensetive* Boolean TODO 
       def index(name, options = {})
         @@indices[model_name] << {:name => name, :options => options}
-      end
-
-      # class Avatar < RedisOrm::Base
-      #   belongs_to :user
-      # end 
-      #
-      # class User < RedisOrm::Base
-      #   has_many :avatars
-      # end 
-      #
-      # avatar.user => avatar:234:user => 1 => User.find(1)
-      def belongs_to(foreign_model, options = {})
-        @@associations[model_name] << {:type => :belongs_to, :foreign_model => foreign_model, :options => options}
-
-        foreign_model_name = if options[:as]
-          options[:as].to_sym
-        else
-          foreign_model.to_sym
-        end
-
-        define_method foreign_model_name.to_sym do
-          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
-        end
-
-        # look = Look.create :title => 'test'
-        # look.user = User.find(1) => look:23:user => 1
-        define_method "#{foreign_model_name}=" do |assoc_with_record|
-          if assoc_with_record.model_name == foreign_model.to_s
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
-          else
-            raise TypeMismatchError
-          end
-
-          # check whether *assoc_with_record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-          if @@associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)            
-            assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
-
-          # check whether *assoc_with_record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-          elsif @@associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
-            assoc_with_record.send("#{model_name}=", self)            
-          end
-        end
-      end
-
-      # user.avatars => user:1:avatars => [1, 22, 234] => Avatar.find([1, 22, 234])
-      # options
-      #   *:dependant* key: either *destroy* or *nullify* (default)
-      def has_many(foreign_models, options = {})
-        @@associations[model_name] << {:type => :has_many, :foreign_models => foreign_models, :options => options}
-
-        define_method foreign_models.to_sym do
-          Associations::HasMany.new(model_name, id, foreign_models)
-        end
-
-        # user = User.find(1)
-        # user.avatars = Avatar.find(23) => user:1:avatars => [23]
-        define_method "#{foreign_models}=" do |records|
-          # clear old assocs from related models side
-          self.send(foreign_models).to_a.each do |record|
-            $redis.zrem "#{record.model_name}:#{record.id}:#{model_name.pluralize}", id
-          end
-
-          # clear old assocs from this model side
-          $redis.zremrangebyscore "#{model_name}:#{id}:#{records[0].model_name.pluralize}", 0, Time.now.to_i
-
-          records.to_a.each do |record|
-            $redis.zadd("#{model_name}:#{id}:#{record.model_name.pluralize}", Time.now.to_i, record.id)
-
-            # article.comments = [comment1, comment2] 
-            # iterate through the array of comments and create backlink
-            # check whether *record* object has *has_many* declaration and TODO it states *self.model_name* in plural
-            if @@associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !$redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
-              $redis.zadd("#{record.model_name}:#{record.id}:#{model_name.pluralize}", Time.now.to_i, id)
-            # check whether *record* object has *has_one* declaration and TODO it states *self.model_name*
-            elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
-              $redis.set("#{record.model_name}:#{record.id}:#{model_name}", id)
-            end
-          end
-        end
-      end
-
-      # user.avatars => user:1:avatars => [1, 22, 234] => Avatar.find([1, 22, 234])
-      # *options* is a hash and can hold:
-      #   *:as* key
-      #   *:dependant* key: either *destroy* or *nullify* (default)
-      def has_one(foreign_model, options = {})
-        @@associations[model_name] << {:type => :has_one, :foreign_model => foreign_model, :options => options}
-
-        foreign_model_name = if options[:as]
-          options[:as].to_sym
-        else
-          foreign_model.to_sym
-        end
-
-        define_method foreign_model_name do
-          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
-        end     
-
-        # profile = Profile.create :title => 'test'
-        # user.profile = profile => user:23:profile => 1
-        define_method "#{foreign_model_name}=" do |assoc_with_record|
-          # we need to store this to clear old associations later
-          old_assoc = self.send(foreign_model_name)
-
-          if assoc_with_record.model_name == foreign_model.to_s
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
-          else
-            raise TypeMismatchError
-          end
-
-          # check whether *assoc_with_record* object has *belongs_to* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-          if @@associations[assoc_with_record.model_name].detect{|h| [:belongs_to, :has_one].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
-            assoc_with_record.send("#{model_name}=", self)
-          elsif @@associations[assoc_with_record.model_name].detect{|h| :has_many == h[:type] && h[:foreign_models] == model_name.to_s.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
-            # remove old assoc 
-            # $redis.zrank "city:2:profiles", 12                       
-            if old_assoc
-              #puts 'key - ' + "#{assoc_with_record.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}"
-              #puts 'self.id - ' + self.id.to_s
-              $redis.zrem "#{assoc_with_record.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id
-            end
-            # create/add new ones
-            assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
-          end
-        end
       end
 
       def property(property_name, class_name, options = {})
@@ -297,7 +106,6 @@ module RedisOrm
         if options[:limit] && options[:offset]
           $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => [options[:offset].to_i, options[:limit].to_i]).compact.collect{|id| find(id)}
         elsif options[:limit]
-          # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
           $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => [0, options[:limit].to_i]).compact.collect{|id| find(id)}
         else
           $redis.zrange("#{model_name}:ids", 0, -1).compact.collect{|id| find(id)}
@@ -435,15 +243,12 @@ module RedisOrm
       if persisted? # then there might be old indices
         # check whether there's old indices exists and if yes - delete them
         @@properties[model_name].each do |prop|
-#puts 'prop - ' + prop.inspect
-          prop_changes = instance_variable_get :"@#{prop[:name]}_changes" #self.send "#{prop[:name]}_changes"
-#puts 'prop_changes - ' + prop_changes.inspect
+          prop_changes = instance_variable_get :"@#{prop[:name]}_changes" 
+
           next if prop_changes.size < 2
           prev_prop_value = prop_changes.first
-#puts 'prev_prop_value - ' + prev_prop_value.inspect
+
           indices = @@indices[model_name].inject([]) do |sum, models_index|
-            #puts 'models_index - ' + models_index.inspect
-            #puts 'sum - ' + sum.inspect
             if models_index[:name].is_a?(Array)
               if models_index[:name].include?(prop[:name])
                 sum << models_index
@@ -459,7 +264,6 @@ module RedisOrm
             end
           end
 
-#puts 'indices - ' + indices.inspect
           if !indices.empty?
             indices.each do |index|
               if index[:name].is_a?(Array)
@@ -468,12 +272,10 @@ module RedisOrm
                 else
                   $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
                 end
-                #puts 'keys_to_delete - ' + keys_to_delete.inspect
+
                 keys_to_delete.each{|key| puts 'key - ' + key.inspect; $redis.del(key)}
               else
                 key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
-                #puts 'key_to_delete - ' + key_to_delete.inspect
-                #puts ($redis.zrangebyscore key_to_delete, 0, Time.now.to_i).inspect
                 $redis.del key_to_delete
               end
             end
@@ -620,10 +422,7 @@ module RedisOrm
           end
 
           if assoc[:options][:dependant] == :destroy
-            puts 'assoc[:options][:dependant] - ' + assoc[:options][:dependant].inspect
-            puts 'records.size - ' + records.size.inspect
             records.each do |r|
-              puts 'r - ' + r.inspect
               r.destroy
             end
           end
