@@ -502,8 +502,10 @@ module RedisOrm
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
 
-        if prop_value.nil? && prop[:options][:default]
+        if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
+          # set instance variable in order to properly save indexes here
+          self.instance_variable_set(:"@#{prop[:name]}", prop[:options][:default]) 
         end
 
         $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)
@@ -520,10 +522,10 @@ module RedisOrm
       @@indices[model_name].each do |index|
         prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
           index[:name].inject([model_name]) do |sum, index_part|
-            sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
+            sum += [index_part, self.instance_variable_get(:"@#{index_part}").to_s]
           end.join(':')
         else
-          [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}")].join(':')
+          [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}").to_s].join(':')
         end
 
         if index[:options][:unique]
