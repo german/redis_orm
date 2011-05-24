@@ -39,6 +39,8 @@ module RedisOrm
       def inherited(from)
         @@callbacks[from.model_name][:after_save] = []
         @@callbacks[from.model_name][:before_save] = []
+        @@callbacks[from.model_name][:after_create] = []
+        @@callbacks[from.model_name][:before_create] = []
         @@callbacks[from.model_name][:after_destroy] = []
         @@callbacks[from.model_name][:before_destroy] = []
       end
@@ -59,7 +61,11 @@ module RedisOrm
           return value if value.nil? # we must return nil here so :default option will work when saving
 
           if Time == class_name
-            value = value.to_s.to_time(:local)
+            value = begin
+              value.to_s.to_time(:local)
+            rescue ArgumentError => e
+              nil
+            end
           elsif Integer == class_name
             value = value.to_i
           elsif Float == class_name
@@ -137,6 +143,22 @@ module RedisOrm
         @@callbacks[model_name][:after_save] << callback
       end
 
+      def before_save(callback)        
+        @@callbacks[model_name][:before_save] << callback
+      end
+
+      def after_create(callback)        
+        @@callbacks[model_name][:after_create] << callback
+      end
+
+      def before_create(callback)        
+        @@callbacks[model_name][:before_create] << callback
+      end
+
+      def after_destroy(callback)
+        @@callbacks[model_name][:after_destroy] << callback
+      end
+      
       def before_destroy(callback)        
         @@callbacks[model_name][:before_destroy] << callback
       end
@@ -240,6 +262,9 @@ module RedisOrm
     end
 
     def save
+      # store here initial persisted flag so we could invoke :after_create callbacks in the end of the function
+      was_persisted = persisted?
+
       if persisted? # then there might be old indices
         # check whether there's old indices exists and if yes - delete them
         @@properties[model_name].each do |prop|
@@ -281,9 +306,11 @@ module RedisOrm
             end
           end
         end
-      end
+      else # !persisted?
+        @@callbacks[model_name][:before_create].each do |callback|
+          self.send(callback)
+        end
 
-      if !persisted?
         @id = $redis.incr("#{model_name}:id")
         $redis.zadd "#{model_name}:ids", Time.now.to_i, @id
         @persisted = true
@@ -339,6 +366,12 @@ module RedisOrm
 
       @@callbacks[model_name][:after_save].each do |callback|
         self.send(callback)
+      end
+
+      if ! was_persisted
+        @@callbacks[model_name][:after_create].each do |callback|
+          self.send(callback)
+        end
       end
     end
 

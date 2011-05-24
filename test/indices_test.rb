@@ -10,7 +10,7 @@ class User < RedisOrm::Base
   index [:first_name, :last_name]
 end
 
-describe "check associations" do
+describe "check indices" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
     $redis_pid = spawn 'redis-server ' + path_to_conf, :out=>"/dev/null"
