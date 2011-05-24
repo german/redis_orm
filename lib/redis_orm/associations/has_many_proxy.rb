@@ -24,18 +24,29 @@ module RedisOrm
       def <<(new_records)
         new_records.to_a.each do |record|
           $redis.zadd("#{@reciever_model_name}:#{@reciever_id}:#{record.model_name.pluralize}", Time.now.to_i, record.id)
-
+          record_associations = record.get_associations
           # article.comments << [comment1, comment2] 
           # iterate through the array of comments and create backlink
-          # check whether *record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *record*'s side (in order not to provoke recursion)
-          
-          if record.get_associations.detect{|h| h[:type] == :has_many && h[:foreign_models] == @reciever_model_name.pluralize.to_sym} && !$redis.zrank("#{record.model_name}:#{record.id}:#{@reciever_model_name.pluralize}", @reciever_id) #record.model_name.to_s.camelize.constantize.find(@reciever_id).nil?
-            $redis.zadd("#{record.model_name}:#{record.id}:#{@reciever_model_name.pluralize}", Time.now.to_i, @reciever_id)
+          # check whether *record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *record*'s side (in order not to provoke recursion)                    
+          if has_many_assoc = record_associations.detect{|h| h[:type] == :has_many && h[:foreign_models] == @reciever_model_name.pluralize.to_sym}
+            pluralized_reciever_model_name = if has_many_assoc[:options][:as]
+              has_many_assoc[:options][:as].pluralize
+            else
+              @reciever_model_name.pluralize
+            end
+            if !$redis.zrank("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", @reciever_id)
+              $redis.zadd("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", Time.now.to_i, @reciever_id)
+            end
           # check whether *record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *record*'s side (in order not to provoke recursion)
-          elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == @reciever_model_name.to_sym} && record.send(@reciever_model_name.to_sym).nil?
-            
-            $redis.set("#{record.model_name}:#{record.id}:#{@reciever_model_name}", @reciever_id)
-            #record.send("#{@reciever_model_name}=", self)            
+          elsif has_one_assoc = record_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == @reciever_model_name.to_sym}
+            reciever_model_name = if has_one_assoc[:options][:as]
+              has_one_assoc[:options][:as].to_sym
+            else
+              @reciever_model_name
+            end
+            if record.send(reciever_model_name).nil?
+              $redis.set("#{record.model_name}:#{record.id}:#{reciever_model_name}", @reciever_id)
+            end
           end
         end
       end
