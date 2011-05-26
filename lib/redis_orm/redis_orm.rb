@@ -373,6 +373,8 @@ module RedisOrm
           self.send(callback)
         end
       end
+
+      true # if there were no errors just return true, so *if* conditions would work
     end
 
     def update_attributes(attributes)
@@ -482,6 +484,8 @@ module RedisOrm
       @@callbacks[model_name][:after_destroy].each do |callback|
         self.send(callback)
       end
+
+      true # if there were no errors just return true, so *if* conditions would work
     end    
   end
 end
