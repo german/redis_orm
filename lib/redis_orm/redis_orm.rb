@@ -37,17 +37,14 @@ module RedisOrm
     class << self
 
       def inherited(from)
-        @@callbacks[from.model_name][:after_save] = []
-        @@callbacks[from.model_name][:before_save] = []
-        @@callbacks[from.model_name][:after_create] = []
-        @@callbacks[from.model_name][:before_create] = []
-        @@callbacks[from.model_name][:after_destroy] = []
-        @@callbacks[from.model_name][:before_destroy] = []
+        [:after_save, :before_save, :after_create, :before_create, :after_destroy, :before_destroy].each do |callback_name|
+          @@callbacks[from.model_name][callback_name] = []
+        end
       end
      
       # *options* currently supports
       #   *unique* Boolean
-      #   *case_insensetive* Boolean TODO 
+      #   *case_insensitive* Boolean TODO 
       def index(name, options = {})
         @@indices[model_name] << {:name => name, :options => options}
       end
@@ -58,7 +55,7 @@ module RedisOrm
         send(:define_method, property_name) do
           value = instance_variable_get(:"@#{property_name}")
 
-          return value if value.nil? # we must return nil here so :default option will work when saving
+          return value if value.nil? # we must return nil here so :default option will work when saving, otherwise it'll return "" or 0 or 0.0
 
           if Time == class_name
             value = begin
