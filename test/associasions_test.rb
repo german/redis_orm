@@ -27,6 +27,11 @@ class Category < RedisOrm::Base
   has_many :articles
 end
 
+class User < RedisOrm::Base
+  property :name, String
+  has_many :users, :as => :friends
+end
+
 describe "check associations" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
@@ -186,5 +191,17 @@ describe "check associations" do
     chicago.profiles.count.should == 0
     washington.profiles.count.should == 1
     washington.profiles[0].id.should == profile.id
+  end
+
+  it "should maintain correct self referencing link" do
+    me = User.create :name => "german"
+    friend1 = User.create :name => "friend1"
+    friend2 = User.create :name => "friend2"
+
+    me.friends << [friend1, friend2]
+
+    me.friends.count.should == 2
+    friend1.friends.count.should == 0
+    friend2.friends.count.should == 0
   end
 end
