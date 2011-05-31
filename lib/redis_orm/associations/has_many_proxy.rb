@@ -78,6 +78,11 @@ module RedisOrm
 
       alias :find :all
 
+      def delete(id)
+        key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
+        $redis.zrem(key, id.to_i)
+      end
+
       def count
         key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
         $redis.zcard key

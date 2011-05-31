@@ -29,6 +29,7 @@ end
 
 class User < RedisOrm::Base
   property :name, String
+  index :name
   has_many :users, :as => :friends
 end
 
@@ -203,5 +204,25 @@ describe "check associations" do
     me.friends.count.should == 2
     friend1.friends.count.should == 0
     friend2.friends.count.should == 0
+  end
+
+  it "should delete one specific record from an array with associated records" do
+    me = User.create :name => "german"
+    friend1 = User.create :name => "friend1"
+    friend2 = User.create :name => "friend2"
+
+    me.friends << [friend1, friend2]
+
+    me = User.find_by_name 'german'
+    me.friends.count.should == 2
+    friend1 = User.find_by_name 'friend1'
+    friend1.friends.count.should == 0
+    friend2 = User.find_by_name 'friend2'
+    friend2.friends.count.should == 0
+
+    me.friends.delete(friend1.id)
+    me.friends.count.should == 1
+    me.friends[0].id == friend2.id
+    User.count.should == 3
   end
 end
