@@ -7,6 +7,7 @@ require 'active_support/core_ext/time/calculations' # local_time for to_time(:lo
 require 'active_support/core_ext/string/conversions' # to_time
 
 module RedisOrm
+  # there is no Boolean class in Ruby so defining a special class to specify TrueClass or FalseClass objects
   class Boolean
   end
 
