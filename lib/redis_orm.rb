@@ -7,4 +7,14 @@ require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'associ
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'associations', 'has_many')
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'associations', 'has_one')
 
+class String
+  def i18n_key
+    self.to_s.tableize
+  end
+
+  def human
+    self.to_s.humanize
+  end
+end
+
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'redis_orm')

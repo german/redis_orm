@@ -22,6 +22,7 @@ module RedisOrm
   end
   
   class Base
+    include ActiveModel::Validations
     include ActiveModelBehavior
 
     extend Associations::BelongsTo
@@ -155,7 +156,7 @@ module RedisOrm
         @@callbacks[model_name][:after_create] << callback
       end
 
-      def before_create(callback)        
+      def before_create(callback)
         @@callbacks[model_name][:before_create] << callback
       end
 
@@ -266,6 +267,8 @@ module RedisOrm
     end
 
     def save
+      return false if !valid?
+
       # store here initial persisted flag so we could invoke :after_create callbacks in the end of the function
       was_persisted = persisted?
 
@@ -310,11 +313,11 @@ module RedisOrm
             end
           end
         end
-      else # !persisted?
+      else # !persisted?        
         @@callbacks[model_name][:before_create].each do |callback|
           self.send(callback)
         end
-
+ 
         @id = $redis.incr("#{model_name}:id")
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
         @persisted = true
