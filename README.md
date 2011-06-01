@@ -12,14 +12,14 @@ end
 ```
 
 Following property types are supported:
-  *Integer*
-  *String*
-  *Float*
-  *RedisOrm::Boolean*
-  *Time*
+*  **Integer**
+*  **String**
+*  **Float**
+*  **RedisOrm::Boolean**
+*  **Time**
 
 Attribute definition supports following options:
-  *default*
+*  **:default**
     The default value of the attribute when it's getting saved w/o any.
 
 ## Searching records by the value
@@ -77,7 +77,7 @@ end
 ```
 
 Index definition supports following options:
-  *unique* Boolean default: false
+*  **:unique** Boolean default: false
 
 ## Associations
 
