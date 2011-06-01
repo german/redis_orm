@@ -1,1 +1,54 @@
-it supposed to be *almost* drop-in replacement for ActiveRecord
+RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord. It's based on the Redis key-value storage.
+It's work in progress.
+
+==Specifing attributes
+
+To specify attributes for the model you should use following syntax:
+
+class User < RedisOrm::Base
+  property :name, String
+end
+
+Following property types are supported:
+  *Integer*
+  *String*
+  *Float*
+  *RedisOrm::Boolean*
+  *Time*
+
+Attribute definition supports following options:
+  *default*
+    The default value of the attribute when it's getting saved w/o any.
+
+==Searching records by the value
+
+Usually it's done via specifing an index and using dynamic finders. For example:
+
+class User < RedisOrm::Base
+  property :name, String
+
+  index :name
+end
+
+User.create :name => "germaninthetown"
+User.find_by_name "germaninthetown" # => found 1 record
+User.find_all_by_name "germaninthetown" # => array with 1 record
+
+Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compaund index on the attributes you are searching on the exception will be raised.
+
+== Indices
+
+Indices are used in a different way then they are used in relational databases. 
+
+You could add index to any attribute of the model. Index could be compaund:
+
+class User < RedisOrm::Base
+  property :first_name, String
+  property :last_name, String
+
+  index [:first_name, :last_name]
+end
+
+Index definition supports following options:
+  *unique* Boolean default: false
+  
