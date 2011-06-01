@@ -97,12 +97,12 @@ module RedisOrm
       end
 
       def first
-        id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_i, :limit => [0, 1])
+        id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => [0, 1])
         id.empty? ? nil : find(id[0])
       end
 
       def last
-        id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => [0, 1])
+        id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => [0, 1])
         id.empty? ? nil : find(id[0])
       end
 
@@ -114,9 +114,9 @@ module RedisOrm
         end
 
         if options[:order].to_s == 'desc'
-          $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => limit).compact.collect{|id| find(id)}
+          $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => limit).compact.collect{|id| find(id)}
         else
-          $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_i, :limit => limit).compact.collect{|id| find(id)}
+          $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => limit).compact.collect{|id| find(id)}
         end
       end
 
@@ -202,7 +202,7 @@ module RedisOrm
             id = if index[:options][:unique]            
               $redis.get prepared_index
             else
-              $redis.zrangebyscore(prepared_index, 0, Time.now.to_i, :limit => [0, 1])[0]
+              $redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => [0, 1])[0]
             end
             model_name.to_s.camelize.constantize.find(id)
           elsif method_name =~ /^find_all_by_(\w*)/
@@ -212,7 +212,7 @@ module RedisOrm
               id = $redis.get prepared_index
               records << model_name.to_s.camelize.constantize.find(id)
             else
-              ids = $redis.zrangebyscore(prepared_index, 0, Time.now.to_i)
+              ids = $redis.zrangebyscore(prepared_index, 0, Time.now.to_f)
               records += model_name.to_s.camelize.constantize.find(ids)
             end          
 
@@ -302,7 +302,7 @@ module RedisOrm
                   $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
                 end
 
-                keys_to_delete.each{|key| puts 'key - ' + key.inspect; $redis.del(key)}
+                keys_to_delete.each{|key| $redis.del(key)}
               else
                 key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
                 $redis.del key_to_delete
@@ -316,7 +316,7 @@ module RedisOrm
         end
 
         @id = $redis.incr("#{model_name}:id")
-        $redis.zadd "#{model_name}:ids", Time.now.to_i, @id
+        $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
         @persisted = true
 
         if @@properties[model_name].detect{|p| p[:name] == :created_at }
@@ -343,7 +343,7 @@ module RedisOrm
 
         $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)
 
-        # reducing @#{prop[:name]}_changes array to last value
+        # reducing @#{prop[:name]}_changes array to the last value
         prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
         if prop_changes && prop_changes.size > 2
           instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
@@ -364,7 +364,7 @@ module RedisOrm
         if index[:options][:unique]
           $redis.set(prepared_index, @id)
         else
-          $redis.zadd(prepared_index, Time.now.to_i, @id)
+          $redis.zadd(prepared_index, Time.now.to_f, @id)
         end
       end
 
@@ -432,7 +432,7 @@ module RedisOrm
               records += self.send(foreign_models_name)
 
               # delete all members             
-              $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_i              
+              $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
           end
 
           # check whether foreign_model also has an assoc to the destroying record
@@ -444,17 +444,17 @@ module RedisOrm
               # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
               # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
               if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.to_sym}
-                puts 'from destr :belongs_to - ' + "#{foreign_model}:#{record.id}:#{model_name}"
+                #puts 'from destr :belongs_to - ' + "#{foreign_model}:#{record.id}:#{model_name}"
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
               
               if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
-                puts 'from destr :has_one - ' + "#{foreign_model}:#{record.id}:#{model_name}"
+                #puts 'from destr :has_one - ' + "#{foreign_model}:#{record.id}:#{model_name}"
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
 
               if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
-                puts "from destr :has_many - " + "#{foreign_model}:#{record.id}:#{model_name.pluralize}"
+                #puts "from destr :has_many - " + "#{foreign_model}:#{record.id}:#{model_name.pluralize}"
                 $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.pluralize}", @id
               end
             end
@@ -481,7 +481,7 @@ module RedisOrm
         if index[:options][:unique]
           $redis.del(prepared_index)
         else
-          $redis.zremrangebyscore(prepared_index, 0, Time.now.to_i)
+          $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
         end
       end
       

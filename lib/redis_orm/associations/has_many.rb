@@ -28,19 +28,19 @@ module RedisOrm
             end
 
             # clear old assocs from this model side
-            $redis.zremrangebyscore "#{model_name}:#{id}:#{records[0].model_name.pluralize}", 0, Time.now.to_i
+            $redis.zremrangebyscore "#{model_name}:#{id}:#{records[0].model_name.pluralize}", 0, Time.now.to_f
           end
 
           records.to_a.each do |record|
             # we use here *foreign_models_name* not *record.model_name.pluralize* because of the :as option
-            $redis.zadd("#{model_name}:#{id}:#{foreign_models_name}", Time.now.to_i, record.id)
+            $redis.zadd("#{model_name}:#{id}:#{foreign_models_name}", Time.now.to_f, record.id)
 
             if !options[:as]
               # article.comments = [comment1, comment2] 
               # iterate through the array of comments and create backlink
               # check whether *record* object has *has_many* declaration and TODO it states *self.model_name* in plural
               if class_associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !$redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
-                $redis.zadd("#{record.model_name}:#{record.id}:#{model_name.pluralize}", Time.now.to_i, id)
+                $redis.zadd("#{record.model_name}:#{record.id}:#{model_name.pluralize}", Time.now.to_f, id)
               # check whether *record* object has *has_one* declaration and TODO it states *self.model_name*
               elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
                 $redis.set("#{record.model_name}:#{record.id}:#{model_name}", id)

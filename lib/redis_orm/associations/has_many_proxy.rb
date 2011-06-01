@@ -11,7 +11,7 @@ module RedisOrm
       end
 
       def fetch
-        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore __key__, Time.now.to_i, 0)
+        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore __key__, Time.now.to_f, 0)
         @fetched = true
       end
 
@@ -24,7 +24,7 @@ module RedisOrm
       # user.avatars << Avatar.find(23) => user:1:avatars => [23]
       def <<(new_records)
         new_records.to_a.each do |record|
-          $redis.zadd(__key__, Time.now.to_i, record.id)          
+          $redis.zadd(__key__, Time.now.to_f, record.id)          
 
           if !@options[:as]
             record_associations = record.get_associations
@@ -40,7 +40,7 @@ module RedisOrm
               end
 
               if !$redis.zrank("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", @reciever_id)
-                $redis.zadd("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", Time.now.to_i, @reciever_id)
+                $redis.zadd("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", Time.now.to_f, @reciever_id)
               end
             # check whether *record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *record*'s side (in order not to provoke recursion)
             elsif has_one_assoc = record_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == @reciever_model_name.to_sym}
@@ -66,9 +66,9 @@ module RedisOrm
           end
 
           record_ids = if options[:order].to_s == 'desc'
-            $redis.zrevrangebyscore(__key__, Time.now.to_i, 0, :limit => limit)
+            $redis.zrevrangebyscore(__key__, Time.now.to_f, 0, :limit => limit)
           else
-            $redis.zrangebyscore(__key__, 0, Time.now.to_i, :limit => limit)
+            $redis.zrangebyscore(__key__, 0, Time.now.to_f, :limit => limit)
           end
           @fetched = true
           @records = @foreign_models.to_s.singularize.camelize.constantize.find(record_ids)
