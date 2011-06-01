@@ -1,4 +1,4 @@
-RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord. It's based on the ![Redis](http://redis.io) key-value storage.
+RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord. It's based on the [Redis](http://redis.io) key-value storage.
 It's work in progress.
 
 ## Specifing attributes

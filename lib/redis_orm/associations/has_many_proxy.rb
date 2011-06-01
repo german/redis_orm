@@ -78,7 +78,21 @@ module RedisOrm
         end
       end
 
-      alias :find :all
+      def find(token = nil, options = {})
+        if token.is_a?(String) || token.is_a?(Integer)
+          record_id = $redis.zrank(__key__, token.to_i)
+          if record_id
+            @fetched = true
+            @records = @foreign_models.to_s.singularize.camelize.constantize.find(token)
+          else
+            nil
+          end
+        elsif token == :all
+          all(options)
+        elsif token == :first
+          all(options.merge({:limit => 1}))
+        end
+      end
 
       def delete(id)
         $redis.zrem(__key__, id.to_i)

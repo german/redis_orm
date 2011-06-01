@@ -84,8 +84,7 @@ describe "test options" do
     @album.photos.all(:limit => 1, :offset => 1).size.should == 1 # [@photo2]
     @album.photos.all(:limit => 2, :offset => 2).should == []
 
-    # testing *find* alias to *all*
-    @album.photos.find(:limit => 1, :offset => 1).size.should == 1 
+    @album.photos.find(:all, :limit => 1, :offset => 1).size.should == 1 
   end
 
   it "should return correct array when :order option is provided" do
@@ -120,13 +119,12 @@ describe "test options" do
     @album.photos.all(:order => "asc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo1.id]
     @album.photos.all(:order => "desc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo2.id]
 
-    # testing #find alias
-    @album.photos.find(:order => "asc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
-    @album.photos.find(:order => "desc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
-    @album.photos.find(:order => "asc", :limit => 1).map{|p| p.id}.should == [@photo2.id]
-    @album.photos.find(:order => "desc", :limit => 1).map{|p| p.id}.should == [@photo1.id]
-    @album.photos.find(:order => "asc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo1.id]
-    @album.photos.find(:order => "desc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo2.id]
+    @album.photos.find(:all, :order => "asc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
+    @album.photos.find(:all, :order => "desc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
+    @album.photos.find(:first, :order => "asc").map{|p| p.id}.should == [@photo2.id]
+    @album.photos.find(:first, :order => "desc").map{|p| p.id}.should == [@photo1.id]
+    @album.photos.find(:all, :order => "asc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo1.id]
+    @album.photos.find(:all, :order => "desc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo2.id]
   end
 
   it "should delete associated records when :dependant => :destroy in *has_many* assoc" do
