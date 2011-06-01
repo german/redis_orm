@@ -11,8 +11,7 @@ module RedisOrm
       end
 
       def fetch
-        key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
-        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore key, Time.now.to_i, 0)
+        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore __key__, Time.now.to_i, 0)
         @fetched = true
       end
 
@@ -25,8 +24,7 @@ module RedisOrm
       # user.avatars << Avatar.find(23) => user:1:avatars => [23]
       def <<(new_records)
         new_records.to_a.each do |record|
-          key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
-          $redis.zadd(key, Time.now.to_i, record.id)          
+          $redis.zadd(__key__, Time.now.to_i, record.id)          
 
           if !@options[:as]
             record_associations = record.get_associations
@@ -60,14 +58,18 @@ module RedisOrm
       end
 
       def all(options = {})
-        key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
-        if options[:limit] && options[:offset]
-          # ZREVRANGEBYSCORE album:ids 1305451611 1305443260 LIMIT 0, 2
-          record_ids = $redis.zrevrangebyscore(key, Time.now.to_i, 0, :limit => [options[:offset].to_i, options[:limit].to_i])
-          @fetched = true
-          @records = @foreign_models.to_s.singularize.camelize.constantize.find(record_ids)
-        elsif options[:limit]
-          record_ids = $redis.zrevrangebyscore(key, Time.now.to_i, 0, :limit => [0, options[:limit].to_i])
+        if options[:limit] || options[:offset] || options[:order]
+          limit = if options[:limit] && options[:offset]
+            [options[:offset].to_i, options[:limit].to_i]            
+          elsif options[:limit]
+            [0, options[:limit].to_i]
+          end
+
+          record_ids = if options[:order].to_s == 'desc'
+            $redis.zrevrangebyscore(__key__, Time.now.to_i, 0, :limit => limit)
+          else
+            $redis.zrangebyscore(__key__, 0, Time.now.to_i, :limit => limit)
+          end
           @fetched = true
           @records = @foreign_models.to_s.singularize.camelize.constantize.find(record_ids)
         else
@@ -79,19 +81,24 @@ module RedisOrm
       alias :find :all
 
       def delete(id)
-        key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
-        $redis.zrem(key, id.to_i)
+        $redis.zrem(__key__, id.to_i)
       end
 
       def count
-        key = @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
-        $redis.zcard key
+        $redis.zcard __key__
       end
 
       def method_missing(method_name, *args, &block)
         fetch if !@fetched
         @records.send(method_name, *args, &block)        
       end
+
+      protected
+
+        # helper method
+        def __key__
+          @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
+        end
     end
   end
 end

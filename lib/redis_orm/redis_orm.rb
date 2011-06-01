@@ -107,17 +107,23 @@ module RedisOrm
       end
 
       def all(options = {})
-        if options[:limit] && options[:offset]
-          $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => [options[:offset].to_i, options[:limit].to_i]).compact.collect{|id| find(id)}
+        limit = if options[:limit] && options[:offset]
+          [options[:offset].to_i, options[:limit].to_i]
         elsif options[:limit]
-          $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => [0, options[:limit].to_i]).compact.collect{|id| find(id)}
+          [0, options[:limit].to_i]
+        end
+
+        if options[:order].to_s == 'desc'
+          $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_i, 0, :limit => limit).compact.collect{|id| find(id)}
         else
-          $redis.zrange("#{model_name}:ids", 0, -1).compact.collect{|id| find(id)}
+          $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_i, :limit => limit).compact.collect{|id| find(id)}
         end
       end
 
-      def find(ids)        
-        if(ids.is_a?(Array))
+      def find(ids)
+        if ids.is_a?(Hash)
+          all(ids)
+        elsif ids.is_a?(Array)
           return [] if ids.empty?
           ids.inject([]) do |array, id|
             record = $redis.hgetall "#{model_name}:#{id}"
