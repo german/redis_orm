@@ -45,6 +45,7 @@ Following property types are supported:
 *  **Float**
 
 *  **RedisOrm::Boolean**
+    there is no Boolean class in Ruby so it's a special class to specify TrueClass or FalseClass objects
 
 *  **Time**
 
@@ -73,7 +74,7 @@ User.find_all_by_name "germaninthetown" # => array with 1 record
 
 Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compaund index on the attributes you are searching on the exception will be raised.
 
-## Options for find/all 
+## Options for #find/#all 
 
 For example we associate 2 photos with the album
 
@@ -140,6 +141,113 @@ RedisOrm provides 3 association types:
 
 HABTM association could be emulated with 2 has_many declarations in related models.
 
+### has_many/belongs_to associations
+
+```ruby
+class Article < RedisOrm::Base
+  property :title, String
+  has_many :comments
+end
+
+class Comment < RedisOrm::Base
+  property :body, String
+  belongs_to :article
+end
+
+article = Article.create :title => "DHH drops OpenID support on 37signals"
+comment1 = Comment.create :body => "test"
+comment2 = Comment.create :body => "test #2"
+
+article.comments << [comment1, comment2]
+
+# or rewrite associations
+article.comments = [comment1, comment2]
+
+article.comments # => [comment1, comment2]
+comment1.article # => article
+comment2.article # => article
+```
+
+Backlinks are automatically created.
+
+### has_one/belongs_to associations
+
+```ruby
+class User < RedisOrm::Base
+  property :name, String
+  has_one :profile  
+end
+
+class Profile < RedisOrm::Base
+  property :age, Integer
+  
+  validates_presence_of :age  
+  belongs_to :user
+end
+
+user = User.create :name => "Haruki Murakami"
+profile = Profile.create :age => 26
+user.profile = profile
+
+user.profile # => profile
+profile.user # => user
+```
+
+Backlink is automatically created.
+
+### has_many/has_many associations (HABTM)
+
+```ruby
+class Article < RedisOrm::Base
+  property :title, String
+  has_many :categories
+end
+
+class Category < RedisOrm::Base
+  property :name, String
+  has_many :articles
+end
+
+article = Article.create :title => "DHH drops OpenID support on 37signals"
+
+cat1 = Category.create :name => "Nature"
+cat2 = Category.create :name => "Art"
+cat3 = Category.create :name => "Web"
+
+article.categories << [cat1, cat2, cat3]
+
+article.categories # => [cat1, cat2, cat3]
+cat1.articles # => [article]
+cat2.articles # => [article]
+cat3.articles # => [article]
+```
+
+Backlinks are automatically created.
+
+### self-referencing association
+
+```ruby
+class User < RedisOrm::Base
+  property :name, String
+  index :name
+  has_many :users, :as => :friends
+end
+
+me = User.create :name => "german"
+friend1 = User.create :name => "friend1"
+friend2 = User.create :name => "friend2"
+
+me.friends << [friend1, friend2]
+
+me.friends # => [friend1, friend2]
+friend1.friends # => []
+friend2.friends # => []
+```
+
+As an exception if *:as* option for the association is provided the backlinks are not established.
+
+For more examples please check test/associations_test.rb
+
 ## Validation
 
 RedisOrm includes ActiveModel::Validations. So all well-known functions are already in. An example from test/validations_test.rb:
@@ -185,7 +293,9 @@ end
 
 ## Saving records
 
-When saving object to Redis new Hash is created with keys/values equal to the properties/values of the saving object. The object then 
+When saving object standard ActiveModel's #valid? method is invoked at first. Then appropriate callbacks are run. Then new Hash in Redis is created with keys/values equal to the properties/values of the saving object. 
+
+The object's id is stored in "model_name:ids" sorted set with Time.now.to_f as a score. So records are ordered by created_at time by default.
 
 ## Tests
 
