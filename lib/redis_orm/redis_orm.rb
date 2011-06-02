@@ -331,6 +331,7 @@ module RedisOrm
         self.send(callback)
       end
 
+      # automatically update *modified_at* property if it was defined
       if @@properties[model_name].detect{|p| p[:name] == :modified_at }
         self.modified_at = Time.now
       end

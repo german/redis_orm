@@ -1,13 +1,38 @@
-RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord. It's based on the [Redis](http://redis.io) key-value storage.
-It's work in progress.
+RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord. It's based on the [Redis](http://redis.io) key-value storage and is work in progress.
 
-## Specifing attributes
-
-To specify attributes for the model you should use following syntax:
+Here's the standard model definition:
 
 ```ruby
 class User < RedisOrm::Base
-  property :name, String
+  property :first_name, String
+  property :last_name, String
+  property :created_at, Time
+  property :modified_at, Time
+  
+  index :last_name
+  index [:first_name, :last_name]
+  
+  has_many :photos
+  has_one :profile
+  
+  after_create :create_mailboxes
+  
+  def create_mailboxes
+    # ...
+  end
+end
+```
+
+## Defining a model and specifing properties
+
+To specify properties for your model you should use the following syntax:
+
+```ruby
+class User < RedisOrm::Base
+  property :first_name, String
+  property :last_name, String
+  property :created_at, Time
+  property :modified_at, Time
 end
 ```
 
@@ -23,7 +48,8 @@ Following property types are supported:
 
 *  **Time**
 
-Attribute definition supports following options:
+The value of the 
+Property definition supports following options:
 
 *  **:default**
 
@@ -79,6 +105,7 @@ class User < RedisOrm::Base
   property :first_name, String
   property :last_name, String
 
+  index :first_name
   index [:first_name, :last_name]
 end
 ```
@@ -86,7 +113,15 @@ end
 With index defined for the property (or number of properties) the id of the saved object is stored in the special sorted set, so it could be found later. For example with defined User model for the above code:
 
 ```ruby
+user = User.new :first_name => "Robert", :last_name => "Pirsig"
+user.save
 
+# 2 redis keys are created "user:first_name:Robert" and "user:first_name:Robert:last_name:Pirsig" so we could search things like this:
+
+User.find_by_first_name("Robert")                             # => user
+User.find_all_by_first_name("Robert")                         # => [user]
+User.find_by_first_name_and_last_name("Robert", "Pirsig")     # => user
+User.find_all_by_first_name_and_last_name("Chris", "Pirsig")  # => []
 ```
 
 Index definition supports following options:
@@ -94,6 +129,16 @@ Index definition supports following options:
 *  **:unique** Boolean default: false
 
 ## Associations
+
+RedisOrm provides 3 association types:
+
+* has_one
+
+* has_many
+
+* belongs_to
+
+HABTM association could be emulated with 2 has_many declarations in related models.
 
 ## Validation
 
@@ -121,7 +166,22 @@ before_create :callback
 after_destroy :callback
 before_destroy :callback
 ```
-They are implemented differently than in ActiveModel though work as expected.
+
+They are implemented differently than in ActiveModel though work as expected:
+
+```ruby
+class Comment < RedisOrm::Base
+  property :text, String
+  
+  belongs_to :user
+
+  before_save :trim_whitespaces
+
+  def trim_whitespaces
+    self.text = self.text.strip
+  end
+end
+```
 
 ## Saving records
 
