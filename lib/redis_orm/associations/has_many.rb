@@ -28,7 +28,7 @@ module RedisOrm
             end
 
             # clear old assocs from this model side
-            $redis.zremrangebyscore "#{model_name}:#{id}:#{records[0].model_name.pluralize}", 0, Time.now.to_f
+            $redis.zremrangebyscore "#{model_name}:#{id}:#{foreign_models}", 0, Time.now.to_f
           end
 
           records.to_a.each do |record|

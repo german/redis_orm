@@ -73,6 +73,12 @@ describe "check associations" do
   end
 
   it "should return array" do
+    @article.comments << []    
+    @article.comments.count.should == 0
+    
+    @article.comments = []    
+    @article.comments.count.should == 0
+    
     @article.comments << [@comment1, @comment2]
     #@article.comments.should be_kind_of(Array)
 
