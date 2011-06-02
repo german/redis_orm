@@ -12,14 +12,21 @@ end
 ```
 
 Following property types are supported:
+
 *  **Integer**
+
 *  **String**
+
 *  **Float**
+
 *  **RedisOrm::Boolean**
+
 *  **Time**
 
 Attribute definition supports following options:
+
 *  **:default**
+
     The default value of the attribute when it's getting saved w/o any.
 
 ## Searching records by the value
@@ -65,7 +72,7 @@ Photo.all(:order => "desc", :limit => 10, :offset => 50)
 
 Indices are used in a different way then they are used in relational databases. 
 
-You could add index to any attribute of the model. Index could be compaund:
+You could add index to any attribute of the model (it also could be compound):
 
 ```ruby
 class User < RedisOrm::Base
@@ -76,17 +83,80 @@ class User < RedisOrm::Base
 end
 ```
 
+With index defined for the property (or number of properties) the id of the saved object is stored in the special sorted set, so it could be found later. For example with defined User model for the above code:
+
+```ruby
+
+```
+
 Index definition supports following options:
+
 *  **:unique** Boolean default: false
 
 ## Associations
 
 ## Validation
 
+RedisOrm includes ActiveModel::Validations. So all well-known functions are already in. An example from test/validations_test.rb:
+
+```ruby
+class Photo < RedisOrm::Base
+  property :image, String
+  
+  validates_presence_of :image
+  validates_length_of :image, :in => 7..32
+  validates_format_of :image, :with => /\w*\.(gif|jpe?g|png)/
+end
+```
+
 ## Callbacks
+
+RedisOrm provides 6 standard callbacks:
+
+```ruby
+after_save :callback
+before_save :callback
+after_create :callback
+before_create :callback
+after_destroy :callback
+before_destroy :callback
+```
+They are implemented differently than in ActiveModel though work as expected.
 
 ## Saving records
 
 When saving object to Redis new Hash is created with keys/values equal to the properties/values of the saving object. The object then 
 
 ## Tests
+
+Though I a fan of the Test::Unit all tests are based on RSpec. And the only reason I did it is before(:all) and after(:all) hooks. So I could spawn/kill redis-server's process:
+
+```ruby
+describe "check callbacks" do
+  before(:all) do
+    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
+    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
+    sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
+    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
+    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
+  end
+  
+  before(:each) do
+    $redis.flushall if $redis
+  end
+
+  after(:each) do
+   $redis.flushall if $redis
+  end
+
+  after(:all) do
+    Process.kill 9, $redis_pid.to_i if $redis_pid
+  end
+  
+  # it "should ..." do
+  #   ...
+  # end
+end
+```
+
+Copyright © 2011 Dmitrii Samoilov, released under the MIT license

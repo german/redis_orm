@@ -24,10 +24,10 @@ end
 describe "exceptions test" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
-    $redis_pid = spawn 'redis-server ' + path_to_conf, :out=>"/dev/null"
-    sleep(1)
+    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
+    sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
     path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)#:port => 6379)
+    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
   end
   
   before(:each) do
@@ -39,9 +39,7 @@ describe "exceptions test" do
   end
 
   after(:all) do
-    if $redis_pid
-      Process.kill 9, $redis_pid.to_i
-    end
+    Process.kill 9, $redis_pid.to_i if $redis_pid
   end
 
   it "should raise an exception if association is provided with improper class" do
