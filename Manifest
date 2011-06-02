@@ -10,7 +10,7 @@ lib/redis_orm/associations/has_many_proxy.rb
 lib/redis_orm/associations/has_one.rb
 lib/redis_orm/redis_orm.rb
 redis_orm.gemspec
-test/associasions_test.rb
+test/associations_test.rb
 test/basic_functionality_test.rb
 test/callbacks_test.rb
 test/changes_array_test.rb
