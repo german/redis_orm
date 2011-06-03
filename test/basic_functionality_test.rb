@@ -21,6 +21,10 @@ class DefaultUser < RedisOrm::Base
   property :modified_at, Time
 end
 
+class TimeStamp < RedisOrm::Base
+  timestamps
+end
+
 describe "check basic functionality" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
@@ -162,5 +166,15 @@ describe "check basic functionality" do
     u.male.should == true
     u.age.should  == 26
     u.wage.should == 256.25
+  end
+  
+  it "should expand timestamps declaration properly" do
+    t = TimeStamp.new
+    t.save
+    
+    t.created_at.should be
+    t.modified_at.should be
+    t.created_at.day.should == Time.now.day
+    t.modified_at.day.should == Time.now.day
   end
 end

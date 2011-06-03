@@ -96,6 +96,16 @@ module RedisOrm
         end
       end
 
+      def timestamps
+        if !@@properties[model_name].detect{|p| p[:name] == :created_at && p[:class] == "Time"}
+          property :created_at, Time
+        end
+        
+        if !@@properties[model_name].detect{|p| p[:name] == :modified_at && p[:class] == "Time"}
+          property :modified_at, Time
+        end
+      end
+      
       def count
         $redis.zcard("#{model_name}:ids").to_i
       end

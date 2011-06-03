@@ -6,8 +6,12 @@ Here's the standard model definition:
 class User < RedisOrm::Base
   property :first_name, String
   property :last_name, String
-  property :created_at, Time
-  property :modified_at, Time
+  
+  timestamps
+  
+  # OR
+  # property :created_at, Time
+  # property :modified_at, Time
   
   index :last_name
   index [:first_name, :last_name]
