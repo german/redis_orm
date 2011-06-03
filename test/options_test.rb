@@ -5,13 +5,13 @@ class Album < RedisOrm::Base
   property :title, String
 
   has_one :photo, :as => :front_photo
-  has_many :photos, :dependant => :destroy
+  has_many :photos, :dependent => :destroy
 end
 
 class Category < RedisOrm::Base
   property :title, String
 
-  has_many :photos, :dependant => :nullify
+  has_many :photos, :dependent => :nullify
 end
 
 class Photo < RedisOrm::Base
@@ -25,7 +25,7 @@ end
 class User < RedisOrm::Base
   property :name, String
   
-  has_one :photo, :dependant => :destroy
+  has_one :photo, :dependent => :destroy
 end
 
 describe "test options" do

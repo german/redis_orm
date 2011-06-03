@@ -477,7 +477,7 @@ module RedisOrm
             end
           end
 
-          if assoc[:options][:dependant] == :destroy
+          if assoc[:options][:dependent] == :destroy
             records.each do |r|
               r.destroy
             end

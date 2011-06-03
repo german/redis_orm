@@ -250,6 +250,16 @@ friend2.friends # => []
 
 As an exception if *:as* option for the association is provided the backlinks are not established.
 
+All associations supports following options:
+
+* *:as* 
+
+  Symbol could be accessed by provided name
+
+* *:dependent* 
+
+  Symbol could be either :destroy or :nullify (default value)
+
 For more examples please check test/associations_test.rb
 
 ## Validation
