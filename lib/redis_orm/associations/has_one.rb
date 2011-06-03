@@ -33,13 +33,11 @@ module RedisOrm
 
           # check whether *assoc_with_record* object has *belongs_to* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
           if class_associations[assoc_with_record.model_name].detect{|h| [:belongs_to, :has_one].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
+            # old association is being rewritten here automatically so we don't have to worry about it
             assoc_with_record.send("#{model_name}=", self)
           elsif class_associations[assoc_with_record.model_name].detect{|h| :has_many == h[:type] && h[:foreign_models] == model_name.to_s.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
-            # remove old assoc 
-            # $redis.zrank "city:2:profiles", 12                       
+            # remove old assoc
             if old_assoc
-              #puts 'key - ' + "#{assoc_with_record.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}"
-              #puts 'self.id - ' + self.id.to_s
               $redis.zrem "#{assoc_with_record.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id
             end
             # create/add new ones

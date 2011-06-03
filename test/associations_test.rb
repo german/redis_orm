@@ -72,6 +72,24 @@ describe "check associations" do
     Process.kill 9, $redis_pid.to_i if $redis_pid
   end
 
+  it "should assign properly from belongs_to side" do
+    @comment1.article.should == nil
+    @comment1.article = @article
+    @comment1.article.id.should == @article.id
+    @article.comments.count.should == 1
+    @article.comments[0].id.should == @comment1.id
+    
+    @comment2.article.should == nil
+    @comment2.article = @article
+    @comment2.article.id.should == @article.id
+    @article.comments.count.should == 2
+    @article.comments[0].id.should == @comment2.id
+    
+    #@comment1.article = nil
+    #@article.comments.count.should == 1
+    #@comment1.article.should == nil
+  end
+  
   it "should return array" do
     @article.comments << []    
     @article.comments.count.should == 0
@@ -82,7 +100,7 @@ describe "check associations" do
     @article.comments << [@comment1, @comment2]
     #@article.comments.should be_kind_of(Array)
 
-    @article.comments.count.should == 2    
+    @article.comments.count.should == 2
     @article.comments.size.should == 2
 
     @comment1.article.should be
