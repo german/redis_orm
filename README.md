@@ -1,4 +1,4 @@
-RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord. It's based on the [Redis](http://redis.io) advanced key-value store and is work in progress.
+RedisOrm supposed to be *almost* drop-in replacement of ActiveRecord 2.x. It's based on the [Redis](http://redis.io) - advanced key-value store and is work in progress.
 
 Here's the standard model definition:
 
@@ -250,6 +250,41 @@ friend2.friends # => []
 
 As an exception if *:as* option for the association is provided the backlinks are not established.
 
+### Polymorphic associations
+
+Polymorphic associations work the same way they do in ActiveRecord (2 keys are created to store type and id of the record)
+
+```ruby
+class CatalogItem < RedisOrm::Base
+  property :title, String
+
+  belongs_to :resource, :polymorphic => true
+end
+
+class Book < RedisOrm::Base
+  property :price, Integer
+  property :title, String
+  
+  has_one :catalog_item
+end
+
+class Giftcard < RedisOrm::Base
+  property :price, Integer
+  property :title, String
+
+  has_one :catalog_item
+end
+
+book = Book.create :title => "Permutation City", :author => "Egan Greg", :price => 1529
+giftcard = Giftcard.create :title => "Happy New Year!"
+
+ci1 = CatalogItem.create :title => giftcard.title
+ci1.resource = giftcard
+    
+ci2 = CatalogItem.create :title => book.title
+ci2.resource = book
+```
+
 All associations supports following options:
 
 * *:as* 
@@ -260,7 +295,7 @@ All associations supports following options:
 
   Symbol could be either :destroy or :nullify (default value)
 
-For more examples please check test/associations_test.rb
+For more examples please check test/associations_test.rb and test/polymorphic_test.rb
 
 ## Validation
 
@@ -342,5 +377,7 @@ describe "check callbacks" do
   # end
 end
 ```
+
+To run all tests just invoke *rake test*
 
 Copyright © 2011 Dmitrii Samoilov, released under the MIT license
