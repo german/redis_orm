@@ -1,3 +1,5 @@
+# -*- encoding: utf-8 -*-
+
 require 'active_model'
 require 'redis'
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'active_model_behavior')

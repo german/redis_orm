@@ -1,3 +1,5 @@
+# -*- encoding: utf-8 -*-
+
 require 'active_support/inflector/inflections'
 require 'active_support/inflector/transliterate'
 require 'active_support/inflector/methods'
@@ -78,7 +80,7 @@ module RedisOrm
           value
         end
     
-        send(:define_method, :"#{property_name}=") do |value|
+        send(:define_method, "#{property_name}=".to_sym) do |value|
           if instance_variable_get(:"@#{property_name}_changes") && !instance_variable_get(:"@#{property_name}_changes").empty?
             initial_value = instance_variable_get(:"@#{property_name}_changes")[0]
             instance_variable_set(:"@#{property_name}_changes", [initial_value, value])
@@ -91,17 +93,19 @@ module RedisOrm
           instance_variable_set(:"@#{property_name}", value)
         end
   
-        send(:define_method, :"#{property_name}_changes") do
+        send(:define_method, "#{property_name}_changes".to_sym) do
           instance_variable_get(:"@#{property_name}_changes")
         end
       end
 
       def timestamps
-        if !@@properties[model_name].detect{|p| p[:name] == :created_at && p[:class] == "Time"}
+        #if !@@properties[model_name].detect{|p| p[:name] == :created_at && p[:class] == "Time"}
+        if !instance_methods.include?(:created_at) && !instance_methods.include?(:"created_at=")
           property :created_at, Time
         end
         
-        if !@@properties[model_name].detect{|p| p[:name] == :modified_at && p[:class] == "Time"}
+        #if !@@properties[model_name].detect{|p| p[:name] == :modified_at && p[:class] == "Time"}
+        if !instance_methods.include?(:modified_at) && !instance_methods.include?(:"modified_at=")
           property :modified_at, Time
         end
       end
@@ -335,9 +339,7 @@ module RedisOrm
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
         @persisted = true
 
-        if @@properties[model_name].detect{|p| p[:name] == :created_at }
-          self.created_at = Time.now
-        end
+        self.created_at = Time.now if respond_to? :created_at
       end
 
       @@callbacks[model_name][:before_save].each do |callback|
@@ -345,9 +347,7 @@ module RedisOrm
       end
 
       # automatically update *modified_at* property if it was defined
-      if @@properties[model_name].detect{|p| p[:name] == :modified_at }
-        self.modified_at = Time.now
-      end
+      self.modified_at = Time.now if respond_to? :modified_at
 
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
@@ -461,17 +461,14 @@ module RedisOrm
               # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
               # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
               if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.to_sym}
-                #puts 'from destr :belongs_to - ' + "#{foreign_model}:#{record.id}:#{model_name}"
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
               
               if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
-                #puts 'from destr :has_one - ' + "#{foreign_model}:#{record.id}:#{model_name}"
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
 
               if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
-                #puts "from destr :has_many - " + "#{foreign_model}:#{record.id}:#{model_name.pluralize}"
                 $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.pluralize}", @id
               end
             end
