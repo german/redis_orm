@@ -1,0 +1,7 @@
+v0.2 [04-06-2011]
+* added polymorphic association
+* added *timestamps* declaration for the model
+* fixed several bugs and improved test coverage
+
+v0.1. [02-06-2011]
+* first release, w00t!

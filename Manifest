@@ -1,3 +1,4 @@
+CHANGELOG
 LICENSE
 Manifest
 README.md
@@ -19,5 +20,6 @@ test/exceptions_test.rb
 test/has_one_has_many_test.rb
 test/indices_test.rb
 test/options_test.rb
+test/polymorphic_test.rb
 test/redis.conf
 test/validations_test.rb
