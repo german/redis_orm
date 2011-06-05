@@ -23,10 +23,22 @@ module RedisOrm
         define_method "#{foreign_models_name}=" do |records|
           if !options[:as]
             # clear old assocs from related models side
-            self.send(foreign_models).to_a.each do |record|
-              $redis.zrem "#{record.model_name}:#{record.id}:#{model_name.pluralize}", id
+            old_records = self.send(foreign_models).to_a
+            if !old_records.empty?
+              # cache here which association with current model have old record's model
+              has_many_assoc = old_records[0].get_associations.detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
+              
+              has_one_or_belongs_to_assoc = old_records[0].get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym}
+              
+              old_records.each do |record|
+                if has_many_assoc
+                  $redis.zrem "#{record.model_name}:#{record.id}:#{model_name.pluralize}", id
+                elsif has_one_or_belongs_to_assoc
+                  $redis.del "#{record.model_name}:#{record.id}:#{model_name}"
+                end
+              end
             end
-
+            
             # clear old assocs from this model side
             $redis.zremrangebyscore "#{model_name}:#{id}:#{foreign_models}", 0, Time.now.to_f
           end

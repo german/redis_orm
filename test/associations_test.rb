@@ -84,12 +84,46 @@ describe "check associations" do
     @comment2.article.id.should == @article.id
     @article.comments.count.should == 2
     @article.comments[0].id.should == @comment2.id
-    
-    #@comment1.article = nil
-    #@article.comments.count.should == 1
-    #@comment1.article.should == nil
   end
  
+  it "should correctly resets associations when nil/[] provided" do
+    # from has_many proxy side
+    @article.comments << [@comment1, @comment2]
+    @article.comments.count.should == 2
+    @comment1.article.id.should == @article.id
+    @comment2.article.id.should == @article.id
+    
+    # clear    
+    @article.comments = []
+    @article.comments.count.should == 0
+    @comment1.article.should == nil
+    @comment2.article.should == nil
+
+    # from belongs_to side
+    @article.comments << [@comment1, @comment2]
+    @article.comments.count.should == 2
+    @comment1.article.id.should == @article.id
+    
+    # clear
+    @comment1.article = nil
+    @article.comments.count.should == 1
+    @comment1.article.should == nil
+    
+    # from has_one side
+    profile = Profile.create :title => "test"
+    chicago = City.create :name => "Chicago"
+
+    profile.city = chicago
+    profile.city.name.should == "Chicago"
+    chicago.profiles.count.should == 1
+    chicago.profiles[0].id.should == profile.id
+    
+    # clear
+    profile.city = nil
+    profile.city.should == nil
+    chicago.profiles.count.should == 0
+  end
+  
   it "should return array" do
     @article.comments << []    
     @article.comments.count.should == 0
@@ -172,7 +206,7 @@ describe "check associations" do
     @article.comments.count.should == 1
     @article.comments.first.id.should == @comment1.id
 
-    @comment1.article.id.should == @article.id
+    @comment1.article.id.should == @article.id    
   end
 
   it "should correctly use many-to-many associations both with '=' and '<<' " do
