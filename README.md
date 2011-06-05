@@ -87,7 +87,15 @@ For example we associate 2 photos with the album
 @album.photos << @photo1
 ```
 
-To extract all or part of the associated records by far  you could use 3 options (#find is an alias for #all in has_many proxy):
+To extract all or part of the associated records you could use 3 options for now (#find is an alias for #all in has_many proxy):
+
+* :limit
+
+* :offset
+
+* :order
+
+  Either :desc or :asc (default), since records are stored with Time.now.to_f scores, be default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
 
 ```ruby
 @album.photos.all(:limit => 0, :offset => 0).should == []
@@ -294,6 +302,32 @@ All associations supports following options:
 * *:dependent* 
 
   Symbol could be either :destroy or :nullify (default value)
+
+### Clearing/reseting associations
+
+You could clear/reset associations by assigning appropriately nil/[] to it:
+
+```ruby
+# has_many association
+@article.comments << [@comment1, @comment2]
+@article.comments.count # => 2
+@comment1.article       # => @article
+
+# clear    
+@article.comments = []
+@article.comments.count # => 0
+@comment1.article       # => nil
+
+# belongs_to (same for has_one)
+@article.comments << [@comment1, @comment2]
+@article.comments.count # => 2
+@comment1.article       # => @article
+    
+# clear
+@comment1.article = nil
+@article.comments.count # => 1
+@comment1.article       # => nil
+```
 
 For more examples please check test/associations_test.rb and test/polymorphic_test.rb
 
