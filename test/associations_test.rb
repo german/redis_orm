@@ -41,7 +41,7 @@ describe "check associations" do
     path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
     $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
   end
-  
+
   before(:each) do
     $redis.flushall if $redis
     @article = Article.new
@@ -89,7 +89,7 @@ describe "check associations" do
     #@article.comments.count.should == 1
     #@comment1.article.should == nil
   end
-  
+ 
   it "should return array" do
     @article.comments << []    
     @article.comments.count.should == 0
@@ -107,6 +107,28 @@ describe "check associations" do
     @comment2.article.should be
 
     @comment1.article.id.should == @comment2.article.id
+  end
+
+  it "should behave as active_record (proxy couldn't return records w/o #all call) += and << behave differently" do
+    @article.comments << @comment1 << @comment2
+    @article.comments.count.should == 2
+
+    comments = @article.comments
+    comments.count.should == 2
+    
+    comments = []
+    comments += @article.comments
+    comments.count.should == 2
+    comments.collect{|c| c.id}.should include(@comment1.id)
+    comments.collect{|c| c.id}.should include(@comment2.id)
+    
+    comments = []
+    comments << @article.comments.all
+    comments.flatten.count.should == 2
+    
+    comments = []
+    comments << @article.comments
+    comments.count.should == 1
   end
 
   it "should return 1 comment when second was deleted" do

@@ -42,7 +42,8 @@ module RedisOrm
               if class_associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !$redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
                 $redis.zadd("#{record.model_name}:#{record.id}:#{model_name.pluralize}", Time.now.to_f, id)
               # check whether *record* object has *has_one* declaration and TODO it states *self.model_name*
-              elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
+              elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym}
+                # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
                 $redis.set("#{record.model_name}:#{record.id}:#{model_name}", id)
               end
             end

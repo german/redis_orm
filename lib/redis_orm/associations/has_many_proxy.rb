@@ -19,6 +19,11 @@ module RedisOrm
         fetch if !@fetched
         @records[index]
       end
+      
+      def to_a
+        fetch if !@fetched
+        @records        
+      end
 
       # user = User.find(1)
       # user.avatars << Avatar.find(23) => user:1:avatars => [23]
@@ -55,6 +60,9 @@ module RedisOrm
             end
           end
         end
+        
+        # return *self* here so calls could be chained
+        self
       end
 
       def all(options = {})
