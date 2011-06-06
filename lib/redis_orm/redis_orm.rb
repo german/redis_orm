@@ -138,25 +138,35 @@ module RedisOrm
         end
       end
 
-      def find(ids)
-        if ids.is_a?(Hash)
-          all(ids)
-        elsif ids.is_a?(Array)
-          return [] if ids.empty?
-          ids.inject([]) do |array, id|
+      def find(*args)
+        if args.first.is_a?(Array)
+          return [] if args.first.empty?
+          args.first.inject([]) do |array, id|
             record = $redis.hgetall "#{model_name}:#{id}"
             if record && !record.empty?
               array << new(record, id, true)
             end
           end
         else
-          return nil if ids.nil?
-          id = ids
-          record = $redis.hgetall "#{model_name}:#{id}"
-          if record && record.empty?
-            nil
-          else
-            new(record, id, true)
+          return nil if args.empty? || args.first.nil?
+          case first = args.shift
+            when :all
+              options = args.last
+              return nil if !options.is_a?(Hash)
+              all(options)
+            when :first
+              options = args.last
+              return nil if !options.is_a?(Hash)
+              all(options.merge({:limit => 1}))[0]
+            when :last
+              options = args.last
+              return nil if !options.is_a?(Hash)
+              reversed = options[:order] == 'asc' ? 'desc' : 'asc'
+              all(options.merge({:limit => 1, :order => reversed}))[0]
+            else
+              id = first
+              record = $redis.hgetall "#{model_name}:#{id}"
+              record && record.empty? ? nil : new(record, id, true)
           end
         end        
       end

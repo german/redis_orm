@@ -96,15 +96,18 @@ describe "test options" do
     Photo.all(:order => "desc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo1.id]
 
     # testing #find method
-    Photo.find(:order => "asc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
-    Photo.find(:order => "desc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
+    Photo.find(:all, :order => "asc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
+    Photo.find(:all, :order => "desc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
 
-    Photo.find(:order => "asc", :limit => 1).map{|p| p.id}.should == [@photo1.id]
-    Photo.find(:order => "desc", :limit => 1).map{|p| p.id}.should == [@photo2.id]
+    Photo.find(:all, :order => "asc", :limit => 1).map{|p| p.id}.should == [@photo1.id]
+    Photo.find(:all, :order => "desc", :limit => 1).map{|p| p.id}.should == [@photo2.id]
 
-    Photo.find(:order => "asc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo2.id]
-    Photo.find(:order => "desc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo1.id]
+    Photo.find(:first, :order => "asc", :limit => 1, :offset => 1).id.should == @photo2.id
+    Photo.find(:first, :order => "desc", :limit => 1, :offset => 1).id.should == @photo1.id
 
+    Photo.find(:last, :order => "asc").id.should == @photo2.id
+    Photo.find(:last, :order => "desc").id.should == @photo1.id
+    
     @album.photos.count.should == 0
     @album.photos.all(:limit => 2, :offset => 0).should == []
     @album.photos << @photo2
@@ -119,8 +122,16 @@ describe "test options" do
 
     @album.photos.find(:all, :order => "asc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
     @album.photos.find(:all, :order => "desc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
-    @album.photos.find(:first, :order => "asc").map{|p| p.id}.should == [@photo2.id]
-    @album.photos.find(:first, :order => "desc").map{|p| p.id}.should == [@photo1.id]
+    
+    @album.photos.find(:first, :order => "asc").id.should == @photo2.id
+    @album.photos.find(:first, :order => "desc").id.should == @photo1.id
+
+    @album.photos.find(:last, :order => "asc").id.should == @photo1.id
+    @album.photos.find(:last, :order => "desc").id.should == @photo2.id
+        
+    @album.photos.find(:last, :order => "desc", :offset => 2).should == nil
+    @album.photos.find(:first, :order => "desc", :offset => 2).should == nil
+    
     @album.photos.find(:all, :order => "asc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo1.id]
     @album.photos.find(:all, :order => "desc", :limit => 1, :offset => 1).map{|p| p.id}.should == [@photo2.id]
   end

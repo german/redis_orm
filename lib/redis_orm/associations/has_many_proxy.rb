@@ -66,7 +66,7 @@ module RedisOrm
       end
 
       def all(options = {})
-        if options[:limit] || options[:offset] || options[:order]
+        if options.is_a?(Hash) && (options[:limit] || options[:offset] || options[:order])
           limit = if options[:limit] && options[:offset]
             [options[:offset].to_i, options[:limit].to_i]            
           elsif options[:limit]
@@ -98,7 +98,10 @@ module RedisOrm
         elsif token == :all
           all(options)
         elsif token == :first
-          all(options.merge({:limit => 1}))
+          all(options.merge({:limit => 1}))[0]
+        elsif token == :last
+          reversed = options[:order] == 'asc' ? 'desc' : 'asc'
+          all(options.merge({:limit => 1, :order => reversed}))[0]
         end
       end
 
