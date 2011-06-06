@@ -2,11 +2,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{redis_orm}
-  s.version = "0.2"
+  s.version = "0.3"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 1.2") if s.respond_to? :required_rubygems_version=
   s.authors = ["Dmitrii Samoilov"]
-  s.date = %q{2011-06-04}
+  s.date = %q{2011-06-06}
   s.description = %q{ORM for Redis advanced key-value storage}
   s.email = %q{germaninthetown@gmail.com}
   s.extra_rdoc_files = ["CHANGELOG", "LICENSE", "README.md", "lib/redis_orm.rb", "lib/redis_orm/active_model_behavior.rb", "lib/redis_orm/associations/belongs_to.rb", "lib/redis_orm/associations/has_many.rb", "lib/redis_orm/associations/has_many_proxy.rb", "lib/redis_orm/associations/has_one.rb", "lib/redis_orm/redis_orm.rb"]
