@@ -16,7 +16,8 @@ class DefaultUser < RedisOrm::Base
   property :age, Integer, :default => 26
   property :wage, Float, :default => 256.25
   property :male, RedisOrm::Boolean, :default => true
-
+  property :admin, RedisOrm::Boolean, :default => false
+  
   property :created_at, Time
   property :modified_at, Time
 end
@@ -160,12 +161,22 @@ describe "check basic functionality" do
     u.modified_at.class.should == Time
     u.wage.class.should == Float
     u.male.class.to_s.should match(/TrueClass|FalseClass/)
+    u.admin.class.to_s.should match(/TrueClass|FalseClass/)
     u.age.class.to_s.should match(/Integer|Fixnum/)
 
     u.name.should == "german"
     u.male.should == true
     u.age.should  == 26
     u.wage.should == 256.25
+    u.admin.should == false
+    
+    du = DefaultUser.new
+    du.name = "germaninthetown"
+    du.save
+    
+    du_saved = DefaultUser.last
+    du_saved.name.should == "germaninthetown"
+    du_saved.admin.should == false
   end
   
   it "should expand timestamps declaration properly" do

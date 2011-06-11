@@ -101,8 +101,9 @@ To extract all or part of the associated records you could use 3 options for now
 @album.photos.all(:limit => 0, :offset => 0).should == []
 @album.photos.all(:limit => 1, :offset => 0).size.should == 1
 @album.photos.all(:limit => 2, :offset => 0)
-@album.photos.find(:order => "asc")
+@album.photos.find(:all, :order => "asc")
 
+Photo.find(:first, :order => "desc")
 Photo.all(:order => "asc", :limit => 5)
 Photo.all(:order => "desc", :limit => 10, :offset => 50)
 ```
