@@ -33,6 +33,11 @@ class User < RedisOrm::Base
   has_many :users, :as => :friends
 end
 
+class Message < RedisOrm::Base
+  property :text, String
+  has_one :message, :as => :replay_to
+end
+
 describe "check associations" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
@@ -302,5 +307,21 @@ describe "check associations" do
     me.friends.count.should == 1
     me.friends[0].id == friend2.id
     User.count.should == 3
+  end
+  
+  it "should create self-referencing link for has_one association" do
+    m = Message.create :text => "it should create self-referencing link for has_one association"
+
+    r = Message.create :text => "replay"
+    
+    r.replay_to = m
+
+    Message.count.should == 2
+    r.replay_to.should be
+    r.replay_to.id.should == m.id
+    
+    rf = Message.last
+    rf.replay_to.should be
+    rf.replay_to.id.should == Message.first.id
   end
 end
