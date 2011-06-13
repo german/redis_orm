@@ -76,7 +76,7 @@ User.find_by_name "germaninthetown" # => found 1 record
 User.find_all_by_name "germaninthetown" # => array with 1 record
 ```
 
-Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compaund index on the attributes you are searching on the exception will be raised.
+Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compound index on the attributes you are searching on the exception will be raised.
 
 ## Options for #find/#all 
 
@@ -142,6 +142,12 @@ Index definition supports following options:
 
 *  **:unique** Boolean default: false
 
+  If true is specified then value is stored in ordinary key-value structure with index as the key, otherwise the values are added to sorted set with index as the key.
+  
+*  **:case_insensitive** Boolean default: false
+
+  If true is specified then property values are saved downcased (and then are transformed to downcase form when searching with dynamic finders). Works for compound indices too.
+  
 ## Associations
 
 RedisOrm provides 3 association types:

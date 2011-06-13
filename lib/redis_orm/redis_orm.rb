@@ -225,8 +225,10 @@ module RedisOrm
           end
 
           raise NotIndexFound if !index
+          
+          prepared_index.downcase! if index[:options][:case_insensitive]
 
-          if method_name =~ /^find_by_(\w*)/                      
+          if method_name =~ /^find_by_(\w*)/
             id = if index[:options][:unique]            
               $redis.get prepared_index
             else
@@ -304,6 +306,7 @@ module RedisOrm
         @@properties[model_name].each do |prop|
           prop_changes = instance_variable_get :"@#{prop[:name]}_changes" 
 
+          # if there were no changes for current property skip it (indices remains the same)
           next if prop_changes.size < 2
           prev_prop_value = prop_changes.first
 
@@ -387,6 +390,8 @@ module RedisOrm
         else
           [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}").to_s].join(':')
         end
+
+        prepared_index.downcase! if index[:options][:case_insensitive]
 
         if index[:options][:unique]
           $redis.set(prepared_index, @id)

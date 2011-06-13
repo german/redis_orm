@@ -10,6 +10,15 @@ class User < RedisOrm::Base
   index [:first_name, :last_name]
 end
 
+class OmniUser < RedisOrm::Base
+  property :email, String
+  property :uid, Integer
+
+  index :email, :case_insensitive => true
+  index :uid
+  index [:email, :uid], :case_insensitive => true
+end
+
 describe "check indices" do
   before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
@@ -72,5 +81,22 @@ describe "check indices" do
     User.find_by_first_name("Christofer").id.should == user.id
     User.find_by_last_name("Robin").id.should == user.id
     User.find_by_first_name_and_last_name("Christofer", "Robin").id.should == user.id    
+  end
+  
+  it "should create case insensitive indices too" do
+    ou = OmniUser.new :email => "GERMAN@Ya.ru", :uid => 2718281828
+    ou.save
+    
+    OmniUser.count.should == 1
+    OmniUser.find_by_email("german@ya.ru").should be
+    OmniUser.find_all_by_email("german@ya.ru").count.should == 1
+    
+    OmniUser.find_by_email_and_uid("german@ya.ru", 2718281828).should be
+    OmniUser.find_all_by_email_and_uid("german@ya.ru", 2718281828).count.should == 1
+
+    OmniUser.find_by_email("geRman@yA.rU").should be
+    OmniUser.find_all_by_email_and_uid("GerMan@Ya.ru", 2718281828).count.should == 1
+        
+    OmniUser.find_all_by_email_and_uid("german@ya.ru", 2718281829).count.should == 0
   end
 end
