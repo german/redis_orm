@@ -1,5 +1,4 @@
-require 'rspec'
-require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
+require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
 class Album < RedisOrm::Base
   property :title, String
@@ -29,24 +28,7 @@ class User < RedisOrm::Base
 end
 
 describe "test options" do
-  before(:all) do
-    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
-    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
-    sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
-    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
-  end
-  
-  after(:all) do
-    Process.kill 9, $redis_pid.to_i if $redis_pid
-  end
-
-  after(:each) do
-   $redis.flushall if $redis
-  end
-
   before(:each) do
-    $redis.flushall if $redis
     @album = Album.new
     @album.title = "my 1st album"
     @album.save

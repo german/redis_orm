@@ -1,5 +1,4 @@
-require 'rspec'
-require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
+require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
 class CatalogItem < RedisOrm::Base
   property :title, String
@@ -41,26 +40,6 @@ class City < RedisOrm::Base
 end
 
 describe "check polymorphic property" do
-  before(:all) do
-    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
-    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
-    sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
-    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
-  end
-  
-  before(:each) do
-    $redis.flushall if $redis
-  end
-
-  after(:each) do
-   $redis.flushall if $redis
-  end
-
-  after(:all) do
-    Process.kill 9, $redis_pid.to_i if $redis_pid
-  end
-
   it "should provide proper associations and save records correctly for has_one/belongs_to polymorphic" do
     book = Book.new :title => "Permutation City", :author => "Egan Greg", :price => 1529
     book.save

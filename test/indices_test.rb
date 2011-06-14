@@ -1,5 +1,4 @@
-require 'rspec'
-require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
+require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
 class User < RedisOrm::Base
   property :first_name, String
@@ -20,26 +19,6 @@ class OmniUser < RedisOrm::Base
 end
 
 describe "check indices" do
-  before(:all) do
-    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
-    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
-    sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
-    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
-  end
-  
-  before(:each) do
-    $redis.flushall if $redis
-  end
-
-  after(:each) do
-   $redis.flushall if $redis
-  end
-
-  after(:all) do
-    Process.kill 9, $redis_pid.to_i if $redis_pid
-  end
-
   it "should change index accordingly to the changes in the model" do
     user = User.new :first_name => "Robert", :last_name => "Pirsig"
     user.save

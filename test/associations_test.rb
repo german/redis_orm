@@ -1,5 +1,4 @@
-require 'rspec'
-require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
+require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
 class Article < RedisOrm::Base
   property :title, String
@@ -39,16 +38,7 @@ class Message < RedisOrm::Base
 end
 
 describe "check associations" do
-  before(:all) do
-    path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
-    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
-    sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
-    path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
-  end
-
   before(:each) do
-    $redis.flushall if $redis
     @article = Article.new
     @article.title = "DHH drops OpenID on 37signals"
     @article.save
@@ -67,14 +57,6 @@ describe "check associations" do
     @comment2.save
     @comment2.should be
     @comment2.body.should == "test #2"
-  end
-
-  after(:each) do
-   $redis.flushall if $redis
-  end
-
-  after(:all) do    
-    Process.kill 9, $redis_pid.to_i if $redis_pid
   end
 
   it "should assign properly from belongs_to side" do
