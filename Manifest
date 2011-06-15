@@ -22,4 +22,5 @@ test/indices_test.rb
 test/options_test.rb
 test/polymorphic_test.rb
 test/redis.conf
+test/test_helper.rb
 test/validations_test.rb

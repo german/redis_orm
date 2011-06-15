@@ -1,3 +1,11 @@
+v0.4 [16-06-2011]
+* added :conditions key to the options hash in #find/#all methods
+* added #{property_name}_changed? instance method
+* fixed self-reference link for has_one association/added test for it
+* added :case_insensitive option to index declaration
+* fixed bug with no output when installed rspec > 2.6
+* added more tests and refactored old ones, updated documentation
+
 v0.3 [06-06-2011]
 * fixed #find functionality both for model itself and for has_many proxy
 * made sure ORM correctly resets associations when nil/[] provided
