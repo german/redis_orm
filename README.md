@@ -40,7 +40,7 @@ class User < RedisOrm::Base
 end
 ```
 
-Following property types are supported:
+Supported property types:
 
 *  **Integer**
 
@@ -49,12 +49,11 @@ Following property types are supported:
 *  **Float**
 
 *  **RedisOrm::Boolean**
-    there is no Boolean class in Ruby so it's a special class to specify TrueClass or FalseClass objects
+    there is no Boolean class in Ruby so it's a special class to store TrueClass or FalseClass objects
 
 *  **Time**
 
-The value of the 
-Property definition supports following options:
+Following options are available in property declaration:
 
 *  **:default**
 
@@ -62,7 +61,7 @@ Property definition supports following options:
 
 ## Searching records by the value
 
-Usually it's done via specifing an index and using dynamic finders. For example:
+Usually it's done via declaring an index and using dynamic finders later. For example:
 
 ```ruby
 class User < RedisOrm::Base
@@ -76,16 +75,9 @@ User.find_by_name "germaninthetown" # => found 1 record
 User.find_all_by_name "germaninthetown" # => array with 1 record
 ```
 
-Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compound index on the attributes you are searching on the exception will be raised.
+Dynamic finders work mostly the way they do in ActiveRecord. The only difference is if you didn't specified index or compound index on the attributes you are searching on the exception will be raised.
 
-## Options for #find/#all 
-
-For example we associate 2 photos with the album
-
-```ruby
-@album.photos << @photo2
-@album.photos << @photo1
-```
+## Options for #find/#all
 
 To extract all or part of the associated records you could use 3 options for now (#find is an alias for #all in has_many proxy):
 
@@ -95,9 +87,13 @@ To extract all or part of the associated records you could use 3 options for now
 
 * :order
 
-  Either :desc or :asc (default), since records are stored with Time.now.to_f scores, be default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
+  Either :desc or :asc (default), since records are stored with Time.now.to_f scores, by default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
 
 ```ruby
+# for example we associate 2 photos with the album
+@album.photos << @photo2
+@album.photos << @photo1
+
 @album.photos.all(:limit => 0, :offset => 0).should == []
 @album.photos.all(:limit => 1, :offset => 0).size.should == 1
 @album.photos.all(:limit => 2, :offset => 0)
@@ -110,7 +106,7 @@ Photo.all(:order => "desc", :limit => 10, :offset => 50)
 
 ## Indices
 
-Indices are used in a different way then they are used in relational databases. 
+Indices are used in a different way then they are used in relational databases. They are used to find record by they value rather then to quick access them.
 
 You could add index to any attribute of the model (it also could be compound):
 
@@ -124,7 +120,7 @@ class User < RedisOrm::Base
 end
 ```
 
-With index defined for the property (or number of properties) the id of the saved object is stored in the special sorted set, so it could be found later. For example with defined User model for the above code:
+With index defined for the property (or properties) the id of the saved object is stored in the special sorted set, so it could be found later by the value. For example with defined User model from the above code:
 
 ```ruby
 user = User.new :first_name => "Robert", :last_name => "Pirsig"
@@ -243,7 +239,7 @@ cat3.articles # => [article]
 
 Backlinks are automatically created.
 
-### self-referencing association
+### Self-referencing association
 
 ```ruby
 class User < RedisOrm::Base
@@ -263,7 +259,7 @@ friend1.friends # => []
 friend2.friends # => []
 ```
 
-As an exception if *:as* option for the association is provided the backlinks are not established.
+As an exception if *:as* option for the association is provided the backlinks aren't created.
 
 ### Polymorphic associations
 
@@ -304,7 +300,7 @@ All associations supports following options:
 
 * *:as* 
 
-  Symbol could be accessed by provided name
+  Symbol Association could be accessed by provided name
 
 * *:dependent* 
 
@@ -387,13 +383,17 @@ When saving object standard ActiveModel's #valid? method is invoked at first. Th
 
 The object's id is stored in "model_name:ids" sorted set with Time.now.to_f as a score. So records are ordered by created_at time by default.
 
+## Dirty
+
+Redis_orm also provides dirty methods to check whether the property has changed and what are these changes. To check it you could use 2 methods: #property_changed? (returns true or false) and #property_changes (returns array with changed values).
+
 ## Tests
 
-Though I a fan of the Test::Unit all tests are based on RSpec. And the only reason I did it is before(:all) and after(:all) hooks. So I could spawn/kill redis-server's process:
+Though I'm a big fan of the Test::Unit all tests are based on RSpec. And the only reason I did it are *before(:all)* and *after(:all)* hooks. So I could spawn/kill redis-server's process (from test_helper.rb):
 
 ```ruby
-describe "check callbacks" do
-  before(:all) do
+RSpec.configure do |config|
+  config.before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
     $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
     sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
@@ -401,21 +401,17 @@ describe "check callbacks" do
     $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
   end
   
-  before(:each) do
+  config.before(:each) do
     $redis.flushall if $redis
   end
 
-  after(:each) do
+  config.after(:each) do
    $redis.flushall if $redis
   end
 
-  after(:all) do
+  config.after(:all) do
     Process.kill 9, $redis_pid.to_i if $redis_pid
   end
-  
-  # it "should ..." do
-  #   ...
-  # end
 end
 ```
 
