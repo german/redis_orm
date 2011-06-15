@@ -96,6 +96,10 @@ module RedisOrm
         send(:define_method, "#{property_name}_changes".to_sym) do
           instance_variable_get(:"@#{property_name}_changes")
         end
+        
+        send(:define_method, "#{property_name}_changed?".to_sym) do
+          instance_variable_get(:"@#{property_name}_changes").size > 1
+        end
       end
 
       def timestamps
@@ -304,11 +308,10 @@ module RedisOrm
       if persisted? # then there might be old indices
         # check whether there's old indices exists and if yes - delete them
         @@properties[model_name].each do |prop|
-          prop_changes = instance_variable_get :"@#{prop[:name]}_changes" 
-
           # if there were no changes for current property skip it (indices remains the same)
-          next if prop_changes.size < 2
-          prev_prop_value = prop_changes.first
+          next if ! self.send(:"#{prop[:name]}_changed?")
+          
+          prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
 
           indices = @@indices[model_name].inject([]) do |sum, models_index|
             if models_index[:name].is_a?(Array)
