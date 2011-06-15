@@ -15,6 +15,10 @@ end
 
 class Photo < RedisOrm::Base
   property :image, String
+  property :image_type, String
+  
+  index :image
+  index [:image, :image_type]
   
   belongs_to :album
   belongs_to :user
@@ -36,17 +40,17 @@ describe "test options" do
     @album.should be
     @album.title.should == "my 1st album"
 
-    @photo1 = Photo.new
-    @photo1.image = "facepalm.jpg"
+    @photo1 = Photo.new :image => "facepalm.jpg", :image_type => "jpg"
     @photo1.save
     @photo1.should be
     @photo1.image.should == "facepalm.jpg"
+    @photo1.image_type.should == "jpg"
 
-    @photo2 = Photo.new
-    @photo2.image = "boobs.jpg"
+    @photo2 = Photo.new :image => "boobs.png", :image_type => "png"
     @photo2.save
     @photo2.should be
-    @photo2.image.should == "boobs.jpg"
+    @photo2.image.should == "boobs.png"
+    @photo2.image_type.should == "png"
   end
 
   it "should return correct array when :limit and :offset options are provided" do
@@ -64,7 +68,25 @@ describe "test options" do
     @album.photos.all(:limit => 1, :offset => 1).size.should == 1 # [@photo2]
     @album.photos.all(:limit => 2, :offset => 2).should == []
 
-    @album.photos.find(:all, :limit => 1, :offset => 1).size.should == 1 
+    @album.photos.find(:all, :limit => 1, :offset => 1).size.should == 1
+    
+    Photo.find(:all, :conditions => {:image => "facepalm.jpg"}).size.should == 1
+    Photo.find(:all, :conditions => {:image => "boobs.png"}).size.should == 1
+
+    Photo.find(:all, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).size.should == 1
+    Photo.find(:all, :conditions => {:image => "boobs.png", :image_type => "png"}).size.should == 1
+        
+    Photo.find(:first, :conditions => {:image => "facepalm.jpg"}).id.should == @photo1.id
+    Photo.find(:first, :conditions => {:image => "boobs.png"}).id.should == @photo2.id
+    
+    Photo.find(:first, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).id.should == @photo1.id
+    Photo.find(:first, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
+    
+    Photo.find(:last, :conditions => {:image => "facepalm.jpg"}).id.should == @photo1.id
+    Photo.find(:last, :conditions => {:image => "boobs.png"}).id.should == @photo2.id
+    
+    Photo.find(:last, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).id.should == @photo1.id
+    Photo.find(:last, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
   end
 
   it "should return correct array when :order option is provided" do
