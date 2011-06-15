@@ -5,6 +5,8 @@ class User < RedisOrm::Base
   property :age, Integer
   property :created_at, Time
 
+  index :age
+  
   has_one :profile
 end
 
@@ -22,14 +24,17 @@ describe "exceptions test" do
   it "should raise an exception if association is provided with improper class" do
     User.count.should == 0
 
-    user = User.new
-    user.name = "german"
+    user = User.new :name => "german", :age => 26
     user.save
 
     user.should be
     user.name.should == "german"
     User.count.should == 1
 
+    lambda{ User.find :all, :conditions => {:name => "german"} }.should raise_error
+    User.find(:all, :conditions => {:age => 26}).size.should == 1
+    lambda{ User.find :all, :conditions => {:name => "german", :age => 26} }.should raise_error
+    
     jigsaw = Jigsaw.new
     jigsaw.title = "123"
     jigsaw.save

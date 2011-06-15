@@ -88,6 +88,10 @@ To extract all or part of the associated records you could use 3 options for now
 * :order
 
   Either :desc or :asc (default), since records are stored with Time.now.to_f scores, by default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
+  
+* :conditions
+
+  Hash where keys must be equal to some property name (there must be index for this property too).
 
 ```ruby
 # for example we associate 2 photos with the album
@@ -102,6 +106,9 @@ To extract all or part of the associated records you could use 3 options for now
 Photo.find(:first, :order => "desc")
 Photo.all(:order => "asc", :limit => 5)
 Photo.all(:order => "desc", :limit => 10, :offset => 50)
+
+Photo.find(:all, :conditions => {:image => "facepalm.jpg"}) # => [...]
+Photo.find(:first, :conditions => {:image => "boobs.png"}) # => @photo1
 ```
 
 ## Indices
