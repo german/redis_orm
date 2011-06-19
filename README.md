@@ -394,6 +394,10 @@ The object's id is stored in "model_name:ids" sorted set with Time.now.to_f as a
 
 Redis_orm also provides dirty methods to check whether the property has changed and what are these changes. To check it you could use 2 methods: #property_changed? (returns true or false) and #property_changes (returns array with changed values).
 
+## File attachment management with paperclip and redis
+
+I wrote ![3 simple steps](http://def-end.com/post/6669884103/file-attachment-management-with-paperclip-and-redis) you should follow to manage your file attachments with redis and paperclip.
+
 ## Tests
 
 Though I'm a big fan of the Test::Unit all tests are based on RSpec. And the only reason I did it are *before(:all)* and *after(:all)* hooks. So I could spawn/kill redis-server's process (from test_helper.rb):
