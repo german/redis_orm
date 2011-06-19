@@ -396,7 +396,7 @@ Redis_orm also provides dirty methods to check whether the property has changed 
 
 ## File attachment management with paperclip and redis
 
-I wrote ![3 simple steps](http://def-end.com/post/6669884103/file-attachment-management-with-paperclip-and-redis) you should follow to manage your file attachments with redis and paperclip.
+I wrote [3 simple steps](http://def-end.com/post/6669884103/file-attachment-management-with-paperclip-and-redis) you should follow to manage your file attachments with redis and paperclip.
 
 ## Tests
 
