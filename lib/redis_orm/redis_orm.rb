@@ -463,7 +463,7 @@ module RedisOrm
       end
 
       @@properties[model_name].each do |prop|
-        $redis.hdel("#{model_name}:#{@id}", prop.to_s)
+        $redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
       end
 
       $redis.zrem "#{model_name}:ids", @id

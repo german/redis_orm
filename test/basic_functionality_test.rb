@@ -76,9 +76,12 @@ describe "check basic functionality" do
     user.name.should == "german"
 
     User.count.should == 1
-
+    id = user.id
+    
     user.destroy
     User.count.should == 0
+    $redis.zrank("user:ids", id).should == nil
+    $redis.hgetall("user:#{id}").should == {}
   end
 
   it "should return first and last objects" do
