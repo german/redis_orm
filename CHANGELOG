@@ -1,3 +1,8 @@
+v0.4.1 [23-06-2011]
+* fixed clitical bug: records after #destroy still available (added test for it)
+* added simple atomicity test
+* README.md: added link to my article "how to integrate redis_orm with paperclip"
+
 v0.4 [16-06-2011]
 * added :conditions key to the options hash in #find/#all methods
 * added #{property_name}_changed? instance method
