@@ -17,6 +17,9 @@ class Photo < RedisOrm::Base
   property :image, String
   property :image_type, String
   
+  property :checked, RedisOrm::Boolean, :default => false
+  index :checked
+  
   index :image
   index [:image, :image_type]
   
@@ -40,7 +43,7 @@ describe "test options" do
     @album.should be
     @album.title.should == "my 1st album"
 
-    @photo1 = Photo.new :image => "facepalm.jpg", :image_type => "jpg"
+    @photo1 = Photo.new :image => "facepalm.jpg", :image_type => "jpg", :checked => true
     @photo1.save
     @photo1.should be
     @photo1.image.should == "facepalm.jpg"
@@ -89,6 +92,13 @@ describe "test options" do
     Photo.find(:last, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
   end
 
+  it "should search on bool values properly" do
+    Photo.find(:all, :conditions => {:checked => true}).size.should == 1
+    Photo.find(:all, :conditions => {:checked => true}).first.id.should == @photo1.id
+    Photo.find(:all, :conditions => {:checked => false}).size.should == 1
+    Photo.find(:all, :conditions => {:checked => false}).first.id.should == @photo2.id
+  end
+  
   it "should return correct array when :order option is provided" do
     Photo.all(:order => "asc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
     Photo.all(:order => "desc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
