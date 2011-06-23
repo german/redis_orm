@@ -85,4 +85,20 @@ describe "check polymorphic property" do
     City.first.people[0].id.should == person.id
     Country.first.people.count.should == 0
   end
+  
+  it "should delete records properly" do
+    country = Country.create :name => "Ukraine"
+    person = Person.create :name => "german"
+    person.location = country
+    
+    Person.first.location.id.should == country.id
+    Country.first.people.count.should == 1
+    Country.first.people[0].id.should == person.id
+    
+    person.destroy
+    Person.count.should == 0
+    $redis.hgetall("user:#{person.id}").should == {}
+    $redis.zrank("user:ids", person.id).should == nil
+    Country.first.people.count.should == 0
+  end
 end

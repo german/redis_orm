@@ -479,9 +479,16 @@ module RedisOrm
             when :belongs_to
               foreign_model = assoc[:foreign_model].to_s
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
-              records << self.send(foreign_model_name)
-
-              $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
+              if assoc[:options][:polymorphic]
+                records << self.send(foreign_model_name)
+                # get real foreign_model's name in order to delete backlinks properly
+                foreign_model = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
+                $redis.del("#{model_name}:#{id}:#{foreign_model_name}_type")
+                $redis.del("#{model_name}:#{id}:#{foreign_model_name}_id")
+              else
+                records << self.send(foreign_model_name)
+                $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
+              end
             when :has_one
               foreign_model = assoc[:foreign_model].to_s
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
