@@ -1,3 +1,9 @@
+v0.4.2 [25-06-2011]
+* fixed bug with wrong saving of :default value/index for boolean type, fixed bug with #find(:all), #find(:first), #find(:last) function calls, added test for it
+* added simple test to ensure correct search on boolean properties
+* properly destroy dependent records
+* delete polymorphic records properly along with their backlinks
+
 v0.4.1 [23-06-2011]
 * fixed clitical bug: records after #destroy still available (added test for it)
 * added simple atomicity test
