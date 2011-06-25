@@ -75,7 +75,7 @@ module RedisOrm
           elsif Float == class_name
             value = value.to_f
           elsif RedisOrm::Boolean == class_name
-            value = (value == "false" ? false : true)
+            value = ((value == "false" || value == false) ? false : true)
           end
           value
         end
@@ -166,7 +166,7 @@ module RedisOrm
           raise NotIndexFound if !index
           
           prepared_index = construct_prepared_index(index, options[:conditions])
-          
+
           records = []          
 
           if index[:options][:unique]            
@@ -177,7 +177,7 @@ module RedisOrm
             records += model_name.to_s.camelize.constantize.find(ids)
           end          
           records
-        else         
+        else
           if options[:order].to_s == 'desc'
             $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => limit).compact.collect{|id| find(id)}
           else
@@ -200,16 +200,16 @@ module RedisOrm
           case first = args.shift
             when :all
               options = args.last
-              return nil if !options.is_a?(Hash)
+              options = {} if !options.is_a?(Hash)
               all(options)
             when :first
               options = args.last
-              return nil if !options.is_a?(Hash)
+              options = {} if !options.is_a?(Hash)
               all(options.merge({:limit => 1}))[0]
             when :last
               options = args.last
-              return nil if !options.is_a?(Hash)
-              reversed = options[:order] == 'asc' ? 'desc' : 'asc'
+              options = {} if !options.is_a?(Hash)
+              reversed = options[:order] == 'desc' ? 'asc' : 'desc'
               all(options.merge({:limit => 1, :order => reversed}))[0]
             else
               id = first
@@ -402,7 +402,7 @@ module RedisOrm
 
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
-
+        
         if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
           # set instance variable in order to properly save indexes here

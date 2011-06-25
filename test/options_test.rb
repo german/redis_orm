@@ -20,6 +20,9 @@ class Photo < RedisOrm::Base
   property :checked, RedisOrm::Boolean, :default => false
   index :checked
   
+  property :inverted, RedisOrm::Boolean, :default => true
+  index :inverted
+  
   index :image
   index [:image, :image_type]
   
@@ -49,7 +52,7 @@ describe "test options" do
     @photo1.image.should == "facepalm.jpg"
     @photo1.image_type.should == "jpg"
 
-    @photo2 = Photo.new :image => "boobs.png", :image_type => "png"
+    @photo2 = Photo.new :image => "boobs.png", :image_type => "png", :inverted => false
     @photo2.save
     @photo2.should be
     @photo2.image.should == "boobs.png"
@@ -73,6 +76,10 @@ describe "test options" do
 
     @album.photos.find(:all, :limit => 1, :offset => 1).size.should == 1
     
+    Photo.find(:all).size.should == 2
+    Photo.find(:first).id.should == @photo1.id
+    Photo.find(:last).id.should == @photo2.id
+    
     Photo.find(:all, :conditions => {:image => "facepalm.jpg"}).size.should == 1
     Photo.find(:all, :conditions => {:image => "boobs.png"}).size.should == 1
 
@@ -92,13 +99,38 @@ describe "test options" do
     Photo.find(:last, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
   end
 
+  it "should correctly save boolean values" do
+    $redis.hgetall("photo:#{@photo1.id}")["inverted"].should == "true"
+    $redis.hgetall("photo:#{@photo2.id}")["inverted"].should == "false"
+
+    @photo1.inverted.should == true 
+    @photo2.inverted.should == false
+        
+    $redis.zrange("photo:inverted:true", 0, -1).should include(@photo1.id.to_s)
+    $redis.zrange("photo:inverted:false", 0, -1).should include(@photo2.id.to_s)
+    
+    $redis.hgetall("photo:#{@photo1.id}")["checked"].should == "true"
+    $redis.hgetall("photo:#{@photo2.id}")["checked"].should == "false"
+    
+    @photo1.checked.should == true
+    @photo2.checked.should == false
+    
+    $redis.zrange("photo:checked:true", 0, -1).should include(@photo1.id.to_s)
+    $redis.zrange("photo:checked:false", 0, -1).should include(@photo2.id.to_s)
+  end
+
   it "should search on bool values properly" do
     Photo.find(:all, :conditions => {:checked => true}).size.should == 1
     Photo.find(:all, :conditions => {:checked => true}).first.id.should == @photo1.id
     Photo.find(:all, :conditions => {:checked => false}).size.should == 1
     Photo.find(:all, :conditions => {:checked => false}).first.id.should == @photo2.id
+    
+    Photo.find(:all, :conditions => {:inverted => true}).size.should == 1
+    Photo.find(:all, :conditions => {:inverted => true}).first.id.should == @photo1.id
+    Photo.find(:all, :conditions => {:inverted => false}).size.should == 1
+    Photo.find(:all, :conditions => {:inverted => false}).first.id.should == @photo2.id
   end
-  
+
   it "should return correct array when :order option is provided" do
     Photo.all(:order => "asc").map{|p| p.id}.should == [@photo1.id, @photo2.id]
     Photo.all(:order => "desc").map{|p| p.id}.should == [@photo2.id, @photo1.id]
