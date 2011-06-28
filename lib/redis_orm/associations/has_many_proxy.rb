@@ -1,6 +1,8 @@
 module RedisOrm
   module Associations
     class HasManyProxy
+      include HasManyHelper
+      
       def initialize(reciever_model_name, reciever_id, foreign_models, options)
         @records = [] #records.to_a
         @reciever_model_name = reciever_model_name
@@ -30,6 +32,10 @@ module RedisOrm
       def <<(new_records)
         new_records.to_a.each do |record|
           $redis.zadd(__key__, Time.now.to_f, record.id)          
+
+          record.get_indices.each do |index|
+            save_index_for_associated_record(index, record, [@reciever_model_name, @reciever_id, record.model_name.pluralize]) # record.model_name.pluralize => @foreign_models
+          end
 
           if !@options[:as]
             record_associations = record.get_associations
@@ -66,20 +72,42 @@ module RedisOrm
       end
 
       def all(options = {})
-        if options.is_a?(Hash) && (options[:limit] || options[:offset] || options[:order])
+        if options.is_a?(Hash) && (options[:limit] || options[:offset] || options[:order] || options[:conditions])
           limit = if options[:limit] && options[:offset]
             [options[:offset].to_i, options[:limit].to_i]            
           elsif options[:limit]
             [0, options[:limit].to_i]
           end
 
-          record_ids = if options[:order].to_s == 'desc'
-            $redis.zrevrangebyscore(__key__, Time.now.to_f, 0, :limit => limit)
+          prepared_index = if options[:conditions] && options[:conditions].is_a?(Hash)
+            properties = options[:conditions].collect{|key, value| key}
+
+            index = @foreign_models.to_s.singularize.camelize.constantize.find_index(properties)
+
+            raise NotIndexFound if !index
+
+            construct_prepared_index(index, options[:conditions])
           else
-            $redis.zrangebyscore(__key__, 0, Time.now.to_f, :limit => limit)
+            __key__
+          end
+
+          @records = []
+
+          # to DRY things up I use here check for index but *else* branch also imply that the index might have be used
+          # since *prepared_index* vary whether options[:conditions] are present or not
+          if index && index[:options][:unique]
+            id = $redis.get prepared_index
+            @records << @foreign_models.to_s.singularize.camelize.constantize.find(id)
+          else
+            ids = if options[:order].to_s == 'desc'
+              $redis.zrevrangebyscore(prepared_index, Time.now.to_f, 0, :limit => limit)
+            else
+              $redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => limit)
+            end
+            @records += @foreign_models.to_s.singularize.camelize.constantize.find(ids)
           end
           @fetched = true
-          @records = @foreign_models.to_s.singularize.camelize.constantize.find(record_ids)
+          @records
         else
           fetch if !@fetched
           @records
@@ -100,7 +128,7 @@ module RedisOrm
         elsif token == :first
           all(options.merge({:limit => 1}))[0]
         elsif token == :last
-          reversed = options[:order] == 'asc' ? 'desc' : 'asc'
+          reversed = options[:order] == 'desc' ? 'asc' : 'desc'
           all(options.merge({:limit => 1, :order => reversed}))[0]
         end
       end
@@ -123,6 +151,21 @@ module RedisOrm
         # helper method
         def __key__
           @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
+        end
+
+        # "article:1:comments:moderated:true"
+        def construct_prepared_index(index, properties_hash)
+          prepared_index = [@reciever_model_name, @reciever_id, @foreign_models].join(':')
+
+          properties_hash.each do |key, value|
+            # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
+            #raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym} # TODO
+            prepared_index += ":#{key}:#{value}"
+          end
+
+          prepared_index.downcase! if index[:options][:case_insensitive]
+
+          prepared_index
         end
     end
   end

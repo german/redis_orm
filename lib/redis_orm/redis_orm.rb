@@ -29,7 +29,9 @@ module RedisOrm
   class Base
     include ActiveModel::Validations
     include ActiveModelBehavior
-
+    
+    include Associations::HasManyHelper
+    
     extend Associations::BelongsTo
     extend Associations::HasMany
     extend Associations::HasOne
@@ -145,7 +147,7 @@ module RedisOrm
           # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
           raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym}
           prepared_index += ":#{key}:#{value}"
-        end        
+        end
               
         prepared_index.downcase! if index[:options][:case_insensitive]
         
@@ -304,6 +306,11 @@ module RedisOrm
       @@associations[self.model_name]
     end
 
+    # is called from RedisOrm::Associations::HasMany to correctly save indices for associated records
+    def get_indices
+      @@indices[self.model_name]
+    end
+    
     def initialize(attributes = {}, id = nil, persisted = false)
       @persisted = persisted
       
@@ -347,6 +354,7 @@ module RedisOrm
           next if ! self.send(:"#{prop[:name]}_changed?")
           
           prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
+          prop_value = instance_variable_get(:"@#{prop[:name]}")
 
           indices = @@indices[model_name].inject([]) do |sum, models_index|
             if models_index[:name].is_a?(Array)
@@ -378,6 +386,32 @@ module RedisOrm
                 key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
                 $redis.del key_to_delete
               end
+
+              # also we need to delete associated records *indices*
+              if !@@associations[model_name].empty?
+                @@associations[model_name].each do |assoc|
+                  case assoc[:type]
+                    when :belongs_to
+                      if !self.send(assoc[:foreign_model]).nil?
+                        if index[:name].is_a?(Array)
+                          keys_to_delete = if index[:name].index(prop) == 0
+                            $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
+                          else
+                            $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
+                          end
+
+                          keys_to_delete.each{|key| $redis.del(key)}
+                        else
+                          key_to_delete = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:#{prev_prop_value}"
+
+                          $redis.del key_to_delete
+                        
+                          $redis.zadd "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:#{prop_value}", Time.now.to_f, @id
+                        end
+                      end
+                  end
+                end
+              end
             end
           end
         end
@@ -406,13 +440,15 @@ module RedisOrm
         if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
           # set instance variable in order to properly save indexes here
-          self.instance_variable_set(:"@#{prop[:name]}", prop[:options][:default]) 
+          self.instance_variable_set(:"@#{prop[:name]}", prop[:options][:default])
+          instance_variable_set :"@#{prop[:name]}_changes", [prop[:options][:default]]
         end
 
         $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)
 
         # reducing @#{prop[:name]}_changes array to the last value
         prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
+
         if prop_changes && prop_changes.size > 2
           instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
         end
@@ -428,6 +464,8 @@ module RedisOrm
         else
           $redis.zadd(prepared_index, Time.now.to_f, @id)
         end
+        
+        #save_index_for_associations(index)
       end
 
       @@callbacks[model_name][:after_save].each do |callback|
@@ -568,5 +606,29 @@ module RedisOrm
         
         prepared_index
       end
+=begin
+      # user:1:photos:moderated:false
+      # article:2:comments:moderated:true
+      def save_index_for_associations(index)
+        if !@@associations[model_name].empty?
+          @@associations[model_name].each do |assoc|
+            prepared_index = case assoc[:type]
+              when :belongs_to
+              when :has_one
+              when :has_many
+                construct_prepared_index(index, [model_name, @id, assoc[:name]])
+            end
+            
+            if prepared_index
+              if index[:options][:unique]
+                $redis.set(prepared_index, @id)
+              else
+                $redis.zadd(prepared_index, Time.now.to_f, @id)
+              end
+            end
+          end
+        end
+      end
+=end
   end
 end

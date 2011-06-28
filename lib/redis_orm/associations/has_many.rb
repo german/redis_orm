@@ -47,6 +47,10 @@ module RedisOrm
             # we use here *foreign_models_name* not *record.model_name.pluralize* because of the :as option
             $redis.zadd("#{model_name}:#{id}:#{foreign_models_name}", Time.now.to_f, record.id)
 
+            record.get_indices.each do |index|
+              save_index_for_associated_record(index, record, [model_name, id, record.model_name.pluralize]) # record.model_name.pluralize => foreign_models_name
+            end
+
             if !options[:as]
               # article.comments = [comment1, comment2] 
               # iterate through the array of comments and create backlink

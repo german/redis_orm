@@ -8,6 +8,10 @@ end
 
 class Comment < RedisOrm::Base
   property :body, String
+  
+  property :moderated, RedisOrm::Boolean, :default => false
+  index :moderated
+  
   belongs_to :article
 end
 
@@ -39,21 +43,18 @@ end
 
 describe "check associations" do
   before(:each) do
-    @article = Article.new
-    @article.title = "DHH drops OpenID on 37signals"
+    @article = Article.new :title => "DHH drops OpenID on 37signals"
     @article.save
 
     @article.should be
     @article.title.should == "DHH drops OpenID on 37signals"
 
-    @comment1 = Comment.new
-    @comment1.body = "test"
+    @comment1 = Comment.new :body => "test"
     @comment1.save
     @comment1.should be
     @comment1.body.should == "test"
 
-    @comment2 = Comment.new
-    @comment2.body = "test #2"
+    @comment2 = Comment.new :body => "test #2", :moderated => true
     @comment2.save
     @comment2.should be
     @comment2.body.should == "test #2"
@@ -111,7 +112,7 @@ describe "check associations" do
     chicago.profiles.count.should == 0
   end
   
-  it "should return array" do
+  it "should return array of records for has_many association" do
     @article.comments << []    
     @article.comments.count.should == 0
     
@@ -177,7 +178,6 @@ describe "check associations" do
     @article.destroy
 
     Article.count.should == 0
-
     Comment.count.should == 2
   end
 
@@ -305,5 +305,79 @@ describe "check associations" do
     rf = Message.last
     rf.replay_to.should be
     rf.replay_to.id.should == Message.first.id
+  end
+
+  it "should properly find associated records (e.g. with :conditions, :order, etc options) '<<' used for association" do
+    @article.comments << [@comment1, @comment2]
+    @article.comments.count.should == 2
+
+    @article.comments.all(:limit => 1).size.should == 1
+    @article.comments.find(:first).should be
+    @article.comments.find(:first).id.should == @comment1.id
+    @article.comments.find(:last).should be
+    @article.comments.find(:last).id.should == @comment2.id
+
+    @article.comments.find(:all, :conditions => {:moderated => true}).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => true})[0].id.should == @comment2.id
+    @article.comments.find(:all, :conditions => {:moderated => false})[0].id.should == @comment1.id
+
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1)[0].id.should == @comment2.id
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1)[0].id.should == @comment1.id
+
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1, :order => :desc).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1, :order => :asc).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1, :order => :desc)[0].id.should == @comment2.id
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1, :order => :asc)[0].id.should == @comment1.id
+
+    @comment1.update_attribute :moderated, true
+    @article.comments.find(:all, :conditions => {:moderated => true}).size.should == 2
+    @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
+
+    #@comment1.destroy
+    #@article.comments.find(:all, :conditions => {:moderated => true}).size.should == 1
+    #@article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
+    #$redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1).size.should == 1
+    #$redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1)[0].should == @comment2.id.to_s
+    #$redis.zrange("article:#{@article.id}:comments:moderated:false", 0, -1).size.should == 0
+  end
+
+  it "should properly find associated records (e.g. with :conditions, :order, etc options) '=' used for association" do
+    @article.comments = [@comment1, @comment2]
+    @article.comments.count.should == 2
+    
+    @article.comments.all(:limit => 1).size.should == 1
+    @article.comments.find(:first).should be
+    @article.comments.find(:first).id.should == @comment1.id
+    @article.comments.find(:last).should be
+    @article.comments.find(:last).id.should == @comment2.id
+    
+    @article.comments.find(:all, :conditions => {:moderated => true}).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => true})[0].id.should == @comment2.id
+    @article.comments.find(:all, :conditions => {:moderated => false})[0].id.should == @comment1.id
+    
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1)[0].id.should == @comment2.id
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1)[0].id.should == @comment1.id
+        
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1, :order => :desc).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1, :order => :asc).size.should == 1
+    @article.comments.find(:all, :conditions => {:moderated => true}, :limit => 1, :order => :desc)[0].id.should == @comment2.id
+    @article.comments.find(:all, :conditions => {:moderated => false}, :limit => 1, :order => :asc)[0].id.should == @comment1.id
+    
+    @comment1.update_attribute :moderated, true
+    @article.comments.find(:all, :conditions => {:moderated => true}).size.should == 2
+    @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
+    
+    #@comment1.destroy
+    #@article.comments.find(:all, :conditions => {:moderated => true}).size.should == 1
+    #@article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
+    #$redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1).size.should == 1
+    #$redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1)[0].should == @comment2.id.to_s
+    #$redis.zrange("article:#{@article.id}:comments:moderated:false", 0, -1).size.should == 0
   end
 end
