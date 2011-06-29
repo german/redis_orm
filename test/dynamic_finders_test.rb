@@ -38,7 +38,7 @@ describe "check associations" do
 
     User.find_all_by_first_name_and_last_name('Dmitrii', 'Samoilov').size.should == 1
 
-    lambda{User.find_all_by_last_name_and_first_name('Samoilov', 'Dmitrii')}.should raise_error
+    User.find_all_by_last_name_and_first_name('Samoilov', 'Dmitrii')[0].id.should == user1.id
 
     lambda{User.find_by_first_name_and_cast_name('Dmitrii', 'Samoilov')}.should raise_error
   end

@@ -53,7 +53,7 @@ module RedisOrm
      
       # *options* currently supports
       #   *unique* Boolean
-      #   *case_insensitive* Boolean TODO 
+      #   *case_insensitive* Boolean
       def index(name, options = {})
         @@indices[model_name] << {:name => name, :options => options}
       end
@@ -133,20 +133,26 @@ module RedisOrm
       def find_index(properties)
         @@indices[model_name].detect do |models_index|
           if models_index[:name].is_a?(Array) && models_index[:name].size == properties.size
-            models_index[:name] == properties.map{|p| p.to_sym}
+            # check the elements not taking into account their order
+            (models_index[:name] & properties.map{|p| p.to_sym}).size == properties.size
           elsif !models_index[:name].is_a?(Array) && properties.size == 1
             models_index[:name] == properties[0].to_sym
           end
         end
       end
       
-      def construct_prepared_index(index, properties_hash)
+      def construct_prepared_index(index, conditions_hash)
         prepared_index = model_name.to_s
        
-        properties_hash.each do |key, value|
-          # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
-          raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym}
-          prepared_index += ":#{key}:#{value}"
+        # in order not to depend on order of keys in *:conditions* hash we rather interate over the index itself and find corresponding values in *:conditions* hash
+        if index[:name].is_a?(Array)
+          index[:name].each do |key|
+            # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
+            raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym}
+            prepared_index += ":#{key}:#{conditions_hash[key]}"
+          end
+        else
+          prepared_index += ":#{index[:name]}:#{conditions_hash[index[:name]]}"
         end
               
         prepared_index.downcase! if index[:options][:case_insensitive]
@@ -506,6 +512,28 @@ module RedisOrm
 
       $redis.zrem "#{model_name}:ids", @id
 
+      # also we need to delete *indices* of associated records
+      if !@@associations[model_name].empty?
+        @@associations[model_name].each do |assoc|        
+          case assoc[:type]
+            when :belongs_to
+              if !self.send(assoc[:foreign_model]).nil?
+                @@indices[model_name].each do |index|
+                  keys_to_delete = if index[:name].is_a?(Array)
+                    full_index = index[:name].inject([]){|sum, index_part| sum << index_part}.join(':')
+                    $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
+                  else
+                    ["#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
+                  end
+                  keys_to_delete.each do |key| 
+                    index[:options][:unique] ? $redis.del(key) : $redis.zrem(key, @id)
+                  end
+                end
+              end
+          end
+        end
+      end
+      
       # also we need to delete *links* to associated records
       if !@@associations[model_name].empty?
         @@associations[model_name].each do |assoc|
@@ -553,7 +581,7 @@ module RedisOrm
               if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.to_sym}
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
-              
+
               if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
@@ -572,9 +600,9 @@ module RedisOrm
             end
           end
         end
-      end      
+      end
 
-      # we need to ensure that smembers are correct after removal of the record
+      # remove all associated indices
       @@indices[model_name].each do |index|
         prepared_index = construct_prepared_index(index) # instance method not class one!
 
@@ -584,7 +612,7 @@ module RedisOrm
           $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
         end
       end
-      
+
       @@callbacks[model_name][:after_destroy].each do |callback|
         self.send(callback)
       end

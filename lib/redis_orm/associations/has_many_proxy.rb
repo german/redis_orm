@@ -154,13 +154,18 @@ module RedisOrm
         end
 
         # "article:1:comments:moderated:true"
-        def construct_prepared_index(index, properties_hash)
+        def construct_prepared_index(index, conditions_hash)
           prepared_index = [@reciever_model_name, @reciever_id, @foreign_models].join(':')
-
-          properties_hash.each do |key, value|
-            # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
-            #raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym} # TODO
-            prepared_index += ":#{key}:#{value}"
+          
+          # in order not to depend on order of keys in *:conditions* hash we rather interate over the index itself and find corresponding values in *:conditions* hash
+          if index[:name].is_a?(Array)
+            index[:name].each do |key|
+              # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
+              #raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym} # TODO
+              prepared_index += ":#{key}:#{conditions_hash[key]}"
+            end
+          else
+            prepared_index += ":#{index[:name]}:#{conditions_hash[index[:name]]}"
           end
 
           prepared_index.downcase! if index[:options][:case_insensitive]
