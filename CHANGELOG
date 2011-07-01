@@ -1,3 +1,7 @@
+v0.5 [02-07-2011]
+* added support of *:conditions* hash in *:options* hash for has_many association in #find/#all methods
+* made keys order-independent in *:conditions* hash
+
 v0.4.2 [25-06-2011]
 * fixed bug with wrong saving of :default value/index for boolean type, fixed bug with #find(:all), #find(:first), #find(:last) function calls, added test for it
 * added simple test to ensure correct search on boolean properties

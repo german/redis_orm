@@ -7,10 +7,12 @@ lib/redis_orm.rb
 lib/redis_orm/active_model_behavior.rb
 lib/redis_orm/associations/belongs_to.rb
 lib/redis_orm/associations/has_many.rb
+lib/redis_orm/associations/has_many_helper.rb
 lib/redis_orm/associations/has_many_proxy.rb
 lib/redis_orm/associations/has_one.rb
 lib/redis_orm/redis_orm.rb
 redis_orm.gemspec
+test/association_indices_test.rb
 test/associations_test.rb
 test/atomicity_test.rb
 test/basic_functionality_test.rb

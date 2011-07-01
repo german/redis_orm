@@ -4,8 +4,8 @@ require 'rake'
 =begin
 require 'echoe'
 
-Echoe.new('redis_orm', '0.4.2') do |p|
-  p.description    = "ORM for Redis advanced key-value storage"
+Echoe.new('redis_orm', '0.5') do |p|
+  p.description    = "ORM for Redis (advanced key-value storage) with ActiveRecord API"
   p.url            = "https://github.com/german/redis_orm"
   p.author         = "Dmitrii Samoilov"
   p.email          = "germaninthetown@gmail.com"
