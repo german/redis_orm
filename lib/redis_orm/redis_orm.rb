@@ -131,12 +131,14 @@ module RedisOrm
       end
 
       def find_index(properties)
+        properties.map!{|p| p.to_sym}
+
         @@indices[model_name].detect do |models_index|
           if models_index[:name].is_a?(Array) && models_index[:name].size == properties.size
             # check the elements not taking into account their order
-            (models_index[:name] & properties.map{|p| p.to_sym}).size == properties.size
+            (models_index[:name] & properties).size == properties.size
           elsif !models_index[:name].is_a?(Array) && properties.size == 1
-            models_index[:name] == properties[0].to_sym
+            models_index[:name] == properties[0]
           end
         end
       end
@@ -396,28 +398,28 @@ module RedisOrm
               # also we need to delete associated records *indices*
               if !@@associations[model_name].empty?
                 @@associations[model_name].each do |assoc|
-                  case assoc[:type]
-                    when :belongs_to
-                      if !self.send(assoc[:foreign_model]).nil?
-                        if index[:name].is_a?(Array)
-                          keys_to_delete = if index[:name].index(prop) == 0
-                            $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
-                          else
-                            $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
-                          end
-
-                          keys_to_delete.each{|key| $redis.del(key)}
+                  if :belongs_to == assoc[:type]
+                    if !self.send(assoc[:foreign_model]).nil?
+                      if index[:name].is_a?(Array)
+                        keys_to_delete = if index[:name].index(prop) == 0
+                          $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
                         else
-                          key_to_delete = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:#{prev_prop_value}"
-
-                          $redis.del key_to_delete
-                        
-                          $redis.zadd "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:#{prop_value}", Time.now.to_f, @id
+                          $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
                         end
+
+                        keys_to_delete.each{|key| $redis.del(key)}
+                      else
+                        beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
+
+                        $redis.del(beginning_of_the_key + prev_prop_value.to_s)
+
+                        index[:options][:unique] ? $redis.set((beginning_of_the_key + prop_value.to_s), @id) : $redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
                       end
+                    end
                   end
                 end
-              end
+              end # deleting associated records *indices*
+
             end
           end
         end
@@ -470,8 +472,6 @@ module RedisOrm
         else
           $redis.zadd(prepared_index, Time.now.to_f, @id)
         end
-        
-        #save_index_for_associations(index)
       end
 
       @@callbacks[model_name][:after_save].each do |callback|
@@ -515,21 +515,20 @@ module RedisOrm
       # also we need to delete *indices* of associated records
       if !@@associations[model_name].empty?
         @@associations[model_name].each do |assoc|        
-          case assoc[:type]
-            when :belongs_to
-              if !self.send(assoc[:foreign_model]).nil?
-                @@indices[model_name].each do |index|
-                  keys_to_delete = if index[:name].is_a?(Array)
-                    full_index = index[:name].inject([]){|sum, index_part| sum << index_part}.join(':')
-                    $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
-                  else
-                    ["#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
-                  end
-                  keys_to_delete.each do |key| 
-                    index[:options][:unique] ? $redis.del(key) : $redis.zrem(key, @id)
-                  end
+          if :belongs_to == assoc[:type]
+            if !self.send(assoc[:foreign_model]).nil?
+              @@indices[model_name].each do |index|
+                keys_to_delete = if index[:name].is_a?(Array)
+                  full_index = index[:name].inject([]){|sum, index_part| sum << index_part}.join(':')
+                  $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
+                else
+                  ["#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
+                end
+                keys_to_delete.each do |key| 
+                  index[:options][:unique] ? $redis.del(key) : $redis.zrem(key, @id)
                 end
               end
+            end
           end
         end
       end
@@ -634,29 +633,5 @@ module RedisOrm
         
         prepared_index
       end
-=begin
-      # user:1:photos:moderated:false
-      # article:2:comments:moderated:true
-      def save_index_for_associations(index)
-        if !@@associations[model_name].empty?
-          @@associations[model_name].each do |assoc|
-            prepared_index = case assoc[:type]
-              when :belongs_to
-              when :has_one
-              when :has_many
-                construct_prepared_index(index, [model_name, @id, assoc[:name]])
-            end
-            
-            if prepared_index
-              if index[:options][:unique]
-                $redis.set(prepared_index, @id)
-              else
-                $redis.zadd(prepared_index, Time.now.to_f, @id)
-              end
-            end
-          end
-        end
-      end
-=end
   end
 end
