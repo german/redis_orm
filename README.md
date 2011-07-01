@@ -79,7 +79,7 @@ Dynamic finders work mostly the way they do in ActiveRecord. The only difference
 
 ## Options for #find/#all
 
-To extract all or part of the associated records you could use 3 options for now (#find is an alias for #all in has_many proxy):
+To extract all or part of the associated records you could use 4 options for now:
 
 * :limit
 
@@ -98,14 +98,16 @@ To extract all or part of the associated records you could use 3 options for now
 @album.photos << @photo2
 @album.photos << @photo1
 
-@album.photos.all(:limit => 0, :offset => 0).should == []
-@album.photos.all(:limit => 1, :offset => 0).size.should == 1
+@album.photos.all(:limit => 0, :offset => 0) # => []
+@album.photos.all(:limit => 1, :offset => 0).size # => 1
 @album.photos.all(:limit => 2, :offset => 0)
+@album.photos.all(:limit => 1, :offset => 1, :conditions => {:image_type => "image/png"})
 @album.photos.find(:all, :order => "asc")
 
 Photo.find(:first, :order => "desc")
 Photo.all(:order => "asc", :limit => 5)
 Photo.all(:order => "desc", :limit => 10, :offset => 50)
+Photo.all(:order => "desc", :offset => 10, :conditions => {:image_type => "image/jpeg"})
 
 Photo.find(:all, :conditions => {:image => "facepalm.jpg"}) # => [...]
 Photo.find(:first, :conditions => {:image => "boobs.png"}) # => @photo1
@@ -139,6 +141,33 @@ User.find_by_first_name("Robert")                             # => user
 User.find_all_by_first_name("Robert")                         # => [user]
 User.find_by_first_name_and_last_name("Robert", "Pirsig")     # => user
 User.find_all_by_first_name_and_last_name("Chris", "Pirsig")  # => []
+```
+
+Indices on associations are also created/deleted/updated when objects with has_many/belongs_to associations are created/deleted/updated (excerpt from association_indices_test.rb):
+
+```ruby
+class Article < RedisOrm::Base
+  property :title, String
+  has_many :comments
+end
+
+class Comment < RedisOrm::Base
+  property :body, String
+  property :moderated, RedisOrm::Boolean, :default => false
+  index :moderated
+  belongs_to :article
+end
+
+article = Article.create :title => "DHH drops OpenID on 37signals"
+comment1 = Comment.create :body => "test"    
+comment2 = Comment.create :body => "test #2", :moderated => true
+
+article.comments << [comment1, comment2]
+
+# here besides usual indices for each comment, 2 association indices are created so #find with *:conditions* on comments just works
+
+article.comments.find(:all, :conditions => {:moderated => true})
+article.comments.find(:all, :conditions => {:moderated => false})
 ```
 
 Index definition supports following options:
