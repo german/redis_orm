@@ -61,7 +61,7 @@ Following options are available in property declaration:
 
 ## Searching records by the value
 
-Usually it's done via declaring an index and using dynamic finders later. For example:
+Usually it's done via declaring an index and using *:conditions* hash or dynamic finders. For example:
 
 ```ruby
 class User < RedisOrm::Base
@@ -71,15 +71,21 @@ class User < RedisOrm::Base
 end
 
 User.create :name => "germaninthetown"
+
+# via dynamic finders:
 User.find_by_name "germaninthetown" # => found 1 record
 User.find_all_by_name "germaninthetown" # => array with 1 record
+
+# via *:conditions* hash:
+User.find(:all, :conditions => {:name => "germaninthetown"}) # => array with 1 record
+User.all(:conditions => {:name => "germaninthetown"}) # => array with 1 record
 ```
 
-Dynamic finders work mostly the way they do in ActiveRecord. The only difference is if you didn't specified index or compound index on the attributes you are searching on the exception will be raised.
+Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compound index on the attributes you are searching on the exception will be raised. So you should make an initial analysis of model and determine properties that should be searchable.
 
 ## Options for #find/#all
 
-To extract all or part of the associated records you could use 4 options for now:
+To extract all or part of the associated records you could use 4 options:
 
 * :limit
 
@@ -87,20 +93,20 @@ To extract all or part of the associated records you could use 4 options for now
 
 * :order
 
-  Either :desc or :asc (default), since records are stored with Time.now.to_f scores, by default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
+  Either :desc or :asc (default), since records are stored with *Time.now.to_f* scores, by default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
   
 * :conditions
 
-  Hash where keys must be equal to some property name (there must be index for this property too).
+  Hash where keys must be equal to the existing property name (there must be index for this property too).
 
 ```ruby
 # for example we associate 2 photos with the album
-@album.photos << @photo2
-@album.photos << @photo1
+@album.photos << Photo.create(:image_type => "image/png", :image => "boobs.png")
+@album.photos << Photo.create(:image_type => "image/jpeg", :image => "facepalm.jpg")
 
 @album.photos.all(:limit => 0, :offset => 0) # => []
 @album.photos.all(:limit => 1, :offset => 0).size # => 1
-@album.photos.all(:limit => 2, :offset => 0)
+@album.photos.all(:limit => 2, :offset => 0) # [...]
 @album.photos.all(:limit => 1, :offset => 1, :conditions => {:image_type => "image/png"})
 @album.photos.find(:all, :order => "asc")
 
@@ -110,14 +116,14 @@ Photo.all(:order => "desc", :limit => 10, :offset => 50)
 Photo.all(:order => "desc", :offset => 10, :conditions => {:image_type => "image/jpeg"})
 
 Photo.find(:all, :conditions => {:image => "facepalm.jpg"}) # => [...]
-Photo.find(:first, :conditions => {:image => "boobs.png"}) # => @photo1
+Photo.find(:first, :conditions => {:image => "boobs.png"}) # => [...]
 ```
 
 ## Indices
 
-Indices are used in a different way then they are used in relational databases. They are used to find record by they value rather then to quick access them.
+Indices are used in a different way then they are used in relational databases. In redis_orm they are used to find record by they value rather then to quick access them.
 
-You could add index to any attribute of the model (it also could be compound):
+You could add index to any attribute of the model (index also could be compound):
 
 ```ruby
 class User < RedisOrm::Base
@@ -129,13 +135,13 @@ class User < RedisOrm::Base
 end
 ```
 
-With index defined for the property (or properties) the id of the saved object is stored in the special sorted set, so it could be found later by the value. For example with defined User model from the above code:
+With index defined for the property (or properties) the id of the saved object is stored in the sorted set with special name, so it could be found later by the value. For example with defined User model from the above code:
 
 ```ruby
 user = User.new :first_name => "Robert", :last_name => "Pirsig"
 user.save
 
-# 2 redis keys are created "user:first_name:Robert" and "user:first_name:Robert:last_name:Pirsig" so we could search things like this:
+# 2 redis keys are created "user:first_name:Robert" and "user:first_name:Robert:last_name:Pirsig" so we could search records like this:
 
 User.find_by_first_name("Robert")                             # => user
 User.find_all_by_first_name("Robert")                         # => [user]
@@ -164,7 +170,7 @@ comment2 = Comment.create :body => "test #2", :moderated => true
 
 article.comments << [comment1, comment2]
 
-# here besides usual indices for each comment, 2 association indices are created so #find with *:conditions* on comments just works
+# here besides usual indices for each comment, 2 association indices are created so #find with *:conditions* on comments should work
 
 article.comments.find(:all, :conditions => {:moderated => true})
 article.comments.find(:all, :conditions => {:moderated => false})
@@ -174,11 +180,11 @@ Index definition supports following options:
 
 *  **:unique** Boolean default: false
 
-  If true is specified then value is stored in ordinary key-value structure with index as the key, otherwise the values are added to sorted set with index as the key.
+  If true is specified then value is stored in ordinary key-value structure with index as the key, otherwise the values are added to sorted set with index as the key and *Time.now.to_f* as a score.
   
 *  **:case_insensitive** Boolean default: false
 
-  If true is specified then property values are saved downcased (and then are transformed to downcase form when searching with dynamic finders). Works for compound indices too.
+  If true is specified then property values are saved downcased (and then are transformed to downcase form when searching). Works for compound indices too.
   
 ## Associations
 
@@ -372,7 +378,7 @@ For more examples please check test/associations_test.rb and test/polymorphic_te
 
 ## Validation
 
-RedisOrm includes ActiveModel::Validations. So all well-known functions are already in. An example from test/validations_test.rb:
+RedisOrm includes ActiveModel::Validations. So all well-known validation callbacks are already in. An excerpt from test/validations_test.rb:
 
 ```ruby
 class Photo < RedisOrm::Base
@@ -417,7 +423,7 @@ end
 
 When saving object standard ActiveModel's #valid? method is invoked at first. Then appropriate callbacks are run. Then new Hash in Redis is created with keys/values equal to the properties/values of the saving object. 
 
-The object's id is stored in "model_name:ids" sorted set with Time.now.to_f as a score. So records are ordered by created_at time by default.
+The object's id is stored in "model_name:ids" sorted set with Time.now.to_f as a score. So records are ordered by created_at time by default. Then record's indices are created/updated.
 
 ## Dirty
 
@@ -425,11 +431,11 @@ Redis_orm also provides dirty methods to check whether the property has changed 
 
 ## File attachment management with paperclip and redis
 
-I wrote [3 simple steps](http://def-end.com/post/6669884103/file-attachment-management-with-paperclip-and-redis) you should follow to manage your file attachments with redis and paperclip.
+[3 simple steps](http://def-end.com/post/6669884103/file-attachment-management-with-paperclip-and-redis) you should follow to manage your file attachments with redis and paperclip.
 
 ## Tests
 
-Though I'm a big fan of the Test::Unit all tests are based on RSpec. And the only reason I did it are *before(:all)* and *after(:all)* hooks. So I could spawn/kill redis-server's process (from test_helper.rb):
+Though I'm a big fan of the Test::Unit all tests are based on RSpec. And the only reason I use RSpec is possibility to define *before(:all)* and *after(:all)* hooks. So I could spawn/kill redis-server's process (from test_helper.rb):
 
 ```ruby
 RSpec.configure do |config|
