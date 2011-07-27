@@ -2,6 +2,7 @@
 
 require 'active_model'
 require 'redis'
+require 'uuid'
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'active_model_behavior')
 
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'associations', 'belongs_to')

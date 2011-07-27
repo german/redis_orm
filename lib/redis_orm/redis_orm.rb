@@ -41,8 +41,9 @@ module RedisOrm
     @@properties = Hash.new{|h,k| h[k] = []}
     @@indices = Hash.new{|h,k| h[k] = []} # compound indices are available too   
     @@associations = Hash.new{|h,k| h[k] = []}
-    @@callbacks = Hash.new{|h,k| h[k] = {}}    
-
+    @@callbacks = Hash.new{|h,k| h[k] = {}}
+    @@use_uuid_as_id = {}
+    
     class << self
 
       def inherited(from)
@@ -114,6 +115,11 @@ module RedisOrm
         if !instance_methods.include?(:modified_at) && !instance_methods.include?(:"modified_at=")
           property :modified_at, Time
         end
+      end
+      
+      def use_uuid_as_id
+        @@use_uuid_as_id[model_name] = true
+        @@uuid = UUID.new
       end
       
       def count
@@ -321,8 +327,10 @@ module RedisOrm
     
     def initialize(attributes = {}, id = nil, persisted = false)
       @persisted = persisted
-      
-      instance_variable_set(:"@id", id.to_i) if id
+
+      id = @@use_uuid_as_id[model_name] ? id : id.to_i
+
+      instance_variable_set(:"@id", id) if id
 
       # when object is created with empty attribute set @#{prop[:name]}_changes array properly
       @@properties[model_name].each do |prop|
@@ -349,6 +357,14 @@ module RedisOrm
       @persisted
     end
 
+    def get_next_id
+      if @@use_uuid_as_id[model_name]
+        @@uuid.generate(:compact)
+      else
+        $redis.incr("#{model_name}:id")
+      end
+    end
+    
     def save
       return false if !valid?
 
@@ -428,10 +444,9 @@ module RedisOrm
           self.send(callback)
         end
  
-        @id = $redis.incr("#{model_name}:id")
+        @id = get_next_id
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
         @persisted = true
-
         self.created_at = Time.now if respond_to? :created_at
       end
 
@@ -463,7 +478,7 @@ module RedisOrm
       end
 
       # save new indices in order to sort by finders
-      # city:name:Харьков => 1
+      # city:name:Chicago => 1
       @@indices[model_name].each do |index|
         prepared_index = construct_prepared_index(index) # instance method not class one!
 

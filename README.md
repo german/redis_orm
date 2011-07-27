@@ -27,6 +27,15 @@ class User < RedisOrm::Base
 end
 ```
 
+## Setting up a connection to the redis server
+
+If you are using Rails you should initialize redis and set up global $redis variable in *config/initializers/redis.rb* file:
+
+```ruby
+require 'redis'
+$redis = Redis.new(:host => 'localhost', :port => 6379)
+```
+
 ## Defining a model and specifing properties
 
 To specify properties for your model you should use the following syntax:
@@ -117,6 +126,42 @@ Photo.all(:order => "desc", :offset => 10, :conditions => {:image_type => "image
 
 Photo.find(:all, :conditions => {:image => "facepalm.jpg"}) # => [...]
 Photo.find(:first, :conditions => {:image => "boobs.png"}) # => [...]
+```
+
+## Using UUID instead of numeric id
+
+You could use universally unique identifiers (UUIDs) instead of a monotone increasing sequence of numbers as id/primary key for your models. 
+
+Example of UUID: b57525b09a69012e8fbe001d61192f09. 
+
+To enable UUIDs you should invoke *use_uuid_as_id* class method:
+
+```ruby
+class User < RedisOrm::Base
+  use_uuid_as_id
+  
+  property :name, String
+
+  property :created_at, Time
+end
+```
+
+[UUID](https://rubygems.org/gems/uuid) gem is installed as a dependency. 
+
+An excerpt from https://github.com/assaf/uuid:
+
+UUID (universally unique identifier) are guaranteed to be unique across time and space. 
+
+A UUID is 128 bit long, and consists of a 60-bit time value, a 16-bit sequence number and a 48-bit node identifier. 
+
+Note: when using a forking server (Unicorn, Resque, Pipemaster, etc) you don’t want your forked processes using the same sequence number. Make sure to increment the sequence number each time a worker forks.
+
+For example, in config/unicorn.rb:
+
+```ruby
+after_fork do |server, worker|
+  UUID.generator.next_sequence
+end
 ```
 
 ## Indices
