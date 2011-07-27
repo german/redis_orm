@@ -10,6 +10,8 @@ class User < RedisOrm::Base
 
   property :created_at, Time
   property :modified_at, Time
+  
+  has_many :users, :as => :friends
 end
 
 class DefaultUser < RedisOrm::Base
@@ -191,5 +193,18 @@ describe "check basic functionality" do
     t.modified_at.should be
     t.created_at.day.should == Time.now.day
     t.modified_at.day.should == Time.now.day
+  end
+  
+  # from associations_test.rb
+  it "should maintain correct self referencing link" do
+    me = User.create :name => "german", :age => 26, :wage => 10.0, :male => true
+    friend1 = User.create :name => "friend1", :age => 26, :wage => 7.0, :male => true
+    friend2 = User.create :name => "friend2", :age => 25, :wage => 5.0, :male => true
+
+    me.friends << [friend1, friend2]
+
+    me.friends.count.should == 2
+    friend1.friends.count.should == 0
+    friend2.friends.count.should == 0
   end
 end

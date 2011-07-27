@@ -26,4 +26,5 @@ test/options_test.rb
 test/polymorphic_test.rb
 test/redis.conf
 test/test_helper.rb
+test/uuid_as_id_test.rb
 test/validations_test.rb

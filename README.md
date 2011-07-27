@@ -148,7 +148,7 @@ end
 
 [UUID](https://rubygems.org/gems/uuid) gem is installed as a dependency. 
 
-An excerpt from https://github.com/assaf/uuid:
+An excerpt from https://github.com/assaf/uuid :
 
 UUID (universally unique identifier) are guaranteed to be unique across time and space. 
 

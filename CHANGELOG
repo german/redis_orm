@@ -1,3 +1,7 @@
+v0.5.1 [27-07-2011]
+* added support of uuid as an id/primary key
+* added documentation on uuid support and connection to the redis server
+
 v0.5 [02-07-2011]
 * added support of *:conditions* hash in *:options* hash for has_many association in #find/#all methods
 * made keys order-independent in *:conditions* hash
