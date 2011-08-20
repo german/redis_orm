@@ -20,6 +20,9 @@ module RedisOrm
   class NotIndexFound < StandardError
   end
 
+  class RecordNotFound < StandardError
+  end
+  
   class TypeMismatchError < StandardError
   end
 
@@ -43,6 +46,7 @@ module RedisOrm
     @@associations = Hash.new{|h,k| h[k] = []}
     @@callbacks = Hash.new{|h,k| h[k] = {}}
     @@use_uuid_as_id = {}
+    @@descendants = []
     
     class << self
 
@@ -50,8 +54,14 @@ module RedisOrm
         [:after_save, :before_save, :after_create, :before_create, :after_destroy, :before_destroy].each do |callback_name|
           @@callbacks[from.model_name][callback_name] = []
         end
+        
+        @@descendants << from
       end
-     
+      
+      def descendants
+        @@descendants
+      end
+      
       # *options* currently supports
       #   *unique* Boolean
       #   *case_insensitive* Boolean
@@ -126,14 +136,22 @@ module RedisOrm
         $redis.zcard("#{model_name}:ids").to_i
       end
 
-      def first
-        id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => [0, 1])
-        id.empty? ? nil : find(id[0])
+      def first(options = {})
+        if options.empty?
+          id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => [0, 1])
+          id.empty? ? nil : find(id[0])
+        else
+          find(:first, options)
+        end
       end
 
-      def last
-        id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => [0, 1])
-        id.empty? ? nil : find(id[0])
+      def last(options = {})
+        if options.empty?
+          id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => [0, 1])
+          id.empty? ? nil : find(id[0])
+        else
+          find(:last, options)
+        end
       end
 
       def find_index(properties)
@@ -235,6 +253,15 @@ module RedisOrm
         end        
       end
 
+      def find!(*args)
+        result = find(*args)
+        if result.nil?
+          raise RecordNotFound
+        else
+          result
+        end
+      end
+      
       def after_save(callback)        
         @@callbacks[model_name][:after_save] << callback
       end
@@ -264,6 +291,8 @@ module RedisOrm
         obj.save
         obj
       end      
+      
+      alias :create! :create
       
       # dynamic finders
       def method_missing(method_name, *args, &block)
@@ -353,6 +382,31 @@ module RedisOrm
       @id
     end
 
+    alias :to_key :id
+    
+    def to_s
+      inspected = "<#{model_name.capitalize} id: #{@id}, "
+      inspected += @@properties[model_name].inject([]) do |sum, prop|
+        property_value = instance_variable_get(:"@#{prop[:name]}")
+        property_value = '"' + property_value + '"' if prop[:class].eql?("String")
+        property_value = 'nil' if property_value.nil?
+        sum << "#{prop[:name]}: " + property_value
+      end.join(', ')
+      inspected += ">"
+      inspected
+    end
+    
+    def ==(other)
+      raise "this object could be comparable only with object of the same class" if other.class != self.class
+      same = true
+      @@properties[model_name].each do |prop|
+        self_var = instance_variable_get(:"@#{prop[:name]}")
+        same = false if other.send(prop[:name]).to_s != self_var.to_s
+      end
+      same = false if self.id != other.id
+      same
+    end
+    
     def persisted?
       @persisted
     end
