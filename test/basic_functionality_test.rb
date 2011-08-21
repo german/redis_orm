@@ -25,7 +25,23 @@ class TimeStamp < RedisOrm::Base
   timestamps
 end
 
+class Person;end
+
 describe "check basic functionality" do
+  it "should have 3 models in descendants" do
+    RedisOrm::Base.descendants.should include(User, DefaultUser, TimeStamp)
+    RedisOrm::Base.descendants.should_not include(Person)
+  end
+  
+  it "should return the same user" do
+    user = User.new :name => "german"
+    user.save
+    User.first.should == user
+    
+    user.name = "Anderson"
+    User.first.should_not == user
+  end
+  
   it "test_simple_creation" do
     User.count.should == 0
 
