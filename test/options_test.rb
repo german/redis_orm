@@ -59,6 +59,17 @@ describe "test options" do
     @photo2.image_type.should == "png"
   end
 
+  it "should behave like expected for #find and #find! methods (nb exceptions with #find! are tested in exceptions_test.rb file)" do
+    Album.find(@album.id).should == @album
+    Album.find!(@album.id).should == @album
+    
+    Album.find(:first).should == @album
+    Album.find!(:first).should == @album
+    
+    Album.find(:all, :limit => 1).size.should == 1
+    Album.find!(:all, :limit => 1).size.should == 1
+  end
+  
   it "should return correct array when :limit and :offset options are provided" do
     @album.photos.count.should == 0
 
@@ -99,6 +110,14 @@ describe "test options" do
     Photo.find(:last, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
   end
 
+  it "should accept options for #first and #last methods" do
+    Photo.first(:conditions => {:image => "facepalm.jpg"}).id.should == @photo1.id
+    Photo.first(:conditions => {:image => "boobs.png"}).id.should == @photo2.id
+    
+    Photo.last(:conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).id.should == @photo1.id
+    Photo.last(:conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
+  end
+  
   it "should correctly save boolean values" do
     $redis.hgetall("photo:#{@photo1.id}")["inverted"].should == "true"
     $redis.hgetall("photo:#{@photo2.id}")["inverted"].should == "false"

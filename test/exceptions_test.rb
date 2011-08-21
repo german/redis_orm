@@ -41,5 +41,10 @@ describe "exceptions test" do
 
     # RedisOrm::TypeMismatchError
     lambda { user.profile = jigsaw }.should raise_error
-  end   
+  end
+  
+  it "should raise an exception if there is no such record in the storage" do
+    User.find(12).should == nil
+    lambda{ User.find! 12 }.should raise_error(RedisOrm::RecordNotFound)
+  end
 end
