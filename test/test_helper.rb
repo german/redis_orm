@@ -8,7 +8,12 @@ RSpec.configure do |config|
     $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
     sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
     path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
+    begin
+      $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
+    rescue => e
+      puts 'Unable to create connection to the redis server: ' + e.message.inspect
+      Process.kill 9, $redis_pid.to_i if $redis_pid
+    end
   end
   
   config.after(:all) do
