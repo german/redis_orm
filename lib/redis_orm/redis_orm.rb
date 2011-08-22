@@ -32,7 +32,7 @@ module RedisOrm
   class Base
     include ActiveModel::Validations
     include ActiveModelBehavior
-    
+    include Utils
     include Associations::HasManyHelper
     
     extend Associations::BelongsTo
@@ -198,24 +198,38 @@ module RedisOrm
           index = find_index(properties)
           
           raise NotIndexFound if !index
-          
+
           prepared_index = construct_prepared_index(index, options[:conditions])
 
-          records = []          
+          records = []
 
-          if index[:options][:unique]            
+          if index[:options][:unique]
             id = $redis.get prepared_index
             records << model_name.to_s.camelize.constantize.find(id)
           else
             ids = $redis.zrangebyscore(prepared_index, 0, Time.now.to_f)
             records += model_name.to_s.camelize.constantize.find(ids)
-          end          
+          end
           records
         else
-          if options[:order].to_s == 'desc'
-            $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => limit).compact.collect{|id| find(id)}
+          order_max_limit = Time.now.to_f
+          ids_key = "#{model_name}:ids"
+
+          # if not array => created_at native order (in which ids were pushed to "#{model_name}:ids" set by default)
+          direction = if options[:order].is_a?(Array)
+            # for String values max limit for search key could be 1.0, but for Numeric values there's actually no limit
+            order_max_limit = 100_000_000_000
+            ids_key = "#{model_name}:#{options[:order].shift}_ids"
+            # after #shift there might be only one element
+            options[:order].size == 1 ? options[:order].pop : 'asc'
           else
-            $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => limit).compact.collect{|id| find(id)}
+            options[:order]
+          end
+
+          if direction.to_s == 'desc'
+            $redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
+          else
+            $redis.zrangebyscore(ids_key, 0, order_max_limit, :limit => limit).compact.collect{|id| find(id)}
           end
         end
       end
@@ -390,7 +404,7 @@ module RedisOrm
         property_value = instance_variable_get(:"@#{prop[:name]}")
         property_value = '"' + property_value + '"' if prop[:class].eql?("String")
         property_value = 'nil' if property_value.nil?
-        sum << "#{prop[:name]}: " + property_value
+        sum << "#{prop[:name]}: " + property_value.to_s
       end.join(', ')
       inspected += ">"
       inspected
@@ -500,6 +514,22 @@ module RedisOrm
  
         @id = get_next_id
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
+        # if some property need to be sortable add id of the record to the appropriate sorted set
+        @@properties[model_name].each do |prop|
+          if prop[:options][:sortable]
+            property_value = instance_variable_get(:"@#{prop[:name]}")
+            key = case prop[:class]
+              when "Integer"; property_value.to_f
+              when "Float"; property_value.to_f
+              when "String"; calculate_key_for_zset(property_value)
+              when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
+              when "Time"; property_value.to_f
+            end
+            $redis.zadd "#{model_name}:#{prop[:name]}_ids", key, @id
+            # TODO add the same @id to special list if index for this property is available
+            # for example "#{model_name}:#{index_name}:#{prop[:name]}_ids"
+          end
+        end
         @persisted = true
         self.created_at = Time.now if respond_to? :created_at
       end
