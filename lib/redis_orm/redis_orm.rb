@@ -42,7 +42,7 @@ module RedisOrm
     attr_accessor :persisted
 
     @@properties = Hash.new{|h,k| h[k] = []}
-    @@indices = Hash.new{|h,k| h[k] = []} # compound indices are available too   
+    @@indices = Hash.new{|h,k| h[k] = []} # compound indices are available too
     @@associations = Hash.new{|h,k| h[k] = []}
     @@callbacks = Hash.new{|h,k| h[k] = {}}
     @@use_uuid_as_id = {}
@@ -153,11 +153,12 @@ module RedisOrm
           find(:last, options)
         end
       end
-
-      def find_index(properties)
+      
+      def find_indices(properties, options = {})
         properties.map!{|p| p.to_sym}
-
-        @@indices[model_name].detect do |models_index|
+        method = options[:first] ? :detect : :select
+        
+        @@indices[model_name].send(method) do |models_index|
           if models_index[:name].is_a?(Array) && models_index[:name].size == properties.size
             # check the elements not taking into account their order
             (models_index[:name] & properties).size == properties.size
@@ -186,6 +187,7 @@ module RedisOrm
         prepared_index
       end
       
+      # TODO refactor this messy function
       def all(options = {})
         limit = if options[:limit] && options[:offset]
           [options[:offset].to_i, options[:limit].to_i]
@@ -193,39 +195,45 @@ module RedisOrm
           [0, options[:limit].to_i]
         end
         
-        if options[:conditions] && options[:conditions].is_a?(Hash)
+        order_max_limit = Time.now.to_f
+        ids_key = "#{model_name}:ids"
+        index = nil
+
+        prepared_index = if !options[:conditions].blank? && options[:conditions].is_a?(Hash)
           properties = options[:conditions].collect{|key, value| key}
-          index = find_index(properties)
+          index = find_indices(properties, :first => true)
           
           raise NotIndexFound if !index
 
-          prepared_index = construct_prepared_index(index, options[:conditions])
-
-          records = []
-
-          if index[:options][:unique]
-            id = $redis.get prepared_index
-            records << model_name.to_s.camelize.constantize.find(id)
-          else
-            ids = $redis.zrangebyscore(prepared_index, 0, Time.now.to_f)
-            records += model_name.to_s.camelize.constantize.find(ids)
-          end
-          records
+          construct_prepared_index(index, options[:conditions])
         else
-          order_max_limit = Time.now.to_f
-          ids_key = "#{model_name}:ids"
+          if options[:order] && options[:order].is_a?(Array)
+            model_name
+          else
+            ids_key
+          end
+        end
 
-          # if not array => created_at native order (in which ids were pushed to "#{model_name}:ids" set by default)
-          direction = if options[:order].is_a?(Array)
+        # if not array => created_at native order (in which ids were pushed to "#{model_name}:ids" set by default)
+        direction = if !options[:order].blank?
+          if options[:order].is_a?(Array)
             # for String values max limit for search key could be 1.0, but for Numeric values there's actually no limit
             order_max_limit = 100_000_000_000
-            ids_key = "#{model_name}:#{options[:order].shift}_ids"
-            # after #shift there might be only one element
-            options[:order].size == 1 ? options[:order].pop : 'asc'
+            ids_key = "#{prepared_index}:#{options[:order].first}_ids"
+            options[:order].size == 2 ? options[:order].last : 'asc'
           else
+            ids_key = prepared_index
             options[:order]
           end
+        else
+          ids_key = prepared_index
+          'asc'
+        end
 
+        if index && index[:options][:unique]
+          id = $redis.get prepared_index
+          model_name.to_s.camelize.constantize.find(id)
+        else
           if direction.to_s == 'desc'
             $redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
           else
@@ -319,7 +327,7 @@ module RedisOrm
             properties.each_with_index do |prop, i| 
               properties_hash.merge!({prop.to_sym => args[i]})
             end
-            find_index(properties)
+            find_indices(properties, :first => true)
           end
 
           raise NotIndexFound if !index
@@ -402,7 +410,7 @@ module RedisOrm
       inspected = "<#{model_name.capitalize} id: #{@id}, "
       inspected += @@properties[model_name].inject([]) do |sum, prop|
         property_value = instance_variable_get(:"@#{prop[:name]}")
-        property_value = '"' + property_value + '"' if prop[:class].eql?("String")
+        property_value = '"' + property_value.to_s + '"' if prop[:class].eql?("String")
         property_value = 'nil' if property_value.nil?
         sum << "#{prop[:name]}: " + property_value.to_s
       end.join(', ')
@@ -518,16 +526,18 @@ module RedisOrm
         @@properties[model_name].each do |prop|
           if prop[:options][:sortable]
             property_value = instance_variable_get(:"@#{prop[:name]}")
-            key = case prop[:class]
+            score = case prop[:class]
               when "Integer"; property_value.to_f
               when "Float"; property_value.to_f
               when "String"; calculate_key_for_zset(property_value)
               when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
               when "Time"; property_value.to_f
             end
-            $redis.zadd "#{model_name}:#{prop[:name]}_ids", key, @id
-            # TODO add the same @id to special list if index for this property is available
-            # for example "#{model_name}:#{index_name}:#{prop[:name]}_ids"
+          end
+          $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
+          # add to every indexed property
+          @@indices[model_name].each do |index|
+            $redis.zadd "#{construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
           end
         end
         @persisted = true

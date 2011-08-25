@@ -82,7 +82,7 @@ module RedisOrm
           prepared_index = if options[:conditions] && options[:conditions].is_a?(Hash)
             properties = options[:conditions].collect{|key, value| key}
 
-            index = @foreign_models.to_s.singularize.camelize.constantize.find_index(properties)
+            index = @foreign_models.to_s.singularize.camelize.constantize.find_indices(properties, :first => true)
 
             raise NotIndexFound if !index
 

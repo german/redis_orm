@@ -27,6 +27,15 @@ class User < RedisOrm::Base
 end
 ```
 
+## Installing redis_orm
+
+gem i redis_orm
+
+or 
+
+git clone git://github.com/german/redis_orm.git
+
+
 ## Setting up a connection to the redis server
 
 If you are using Rails you should initialize redis and set up global $redis variable in *config/initializers/redis.rb* file:
@@ -68,6 +77,10 @@ Following options are available in property declaration:
 
     The default value of the attribute when it's getting saved w/o any.
 
+*  **:sortable**
+
+    if *true* is specified then you could sort records by this property later
+
 ## Searching records by the value
 
 Usually it's done via declaring an index and using *:conditions* hash or dynamic finders. For example:
@@ -102,7 +115,11 @@ To extract all or part of the associated records you could use 4 options:
 
 * :order
 
-  Either :desc or :asc (default), since records are stored with *Time.now.to_f* scores, by default they could be fetched only in that (or reversed) order. To store them in different order you should *zadd* record's id to some other sorted list manually.
+  Either :desc or :asc (default), since records are stored with *Time.now.to_f* scores, by default they could be fetched only in that (or reversed) order. To order by different property you should:
+  
+  1. specify *:sortable => true* as option in property declaration
+  
+  2. specify the property by which you wish to order *:order => [:name, :desc]* or *:order => [:name]* (:asc order is default)
   
 * :conditions
 

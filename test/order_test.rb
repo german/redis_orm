@@ -33,4 +33,20 @@ describe "test options" do
     User.find(:all, :order => [:wage, :asc]).should == [@todd, @dan, @michael, @abe]
     User.find(:all, :order => [:wage, :desc]).should == [@abe, @michael, @dan, @todd]
   end
+
+  it "should return records which met specified conditions in specified order" do
+    @abe2    = User.create :name => "Abe",      :age => 12, :wage => 10.0,      :address => "Santa Fe"
+    
+    # :asc should be default value for property in :order clause
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage]).should == [@abe2, @abe]
+    
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :desc]).should == [@abe, @abe2]
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :asc]).should == [@abe2, @abe]
+    
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:age, :desc]).should == [@abe, @abe2]
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:age, :asc]).should == [@abe2, @abe]
+    
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :desc]).should == [@abe, @abe2]
+    User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :asc]).should == [@abe2, @abe]
+  end
 end
