@@ -29,12 +29,13 @@ end
 
 ## Installing redis_orm
 
-gem i redis_orm
+gem install redis_orm
 
 or 
 
 git clone git://github.com/german/redis_orm.git
-
+cd redis_orm
+bundle install
 
 ## Setting up a connection to the redis server
 
