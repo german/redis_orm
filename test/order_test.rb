@@ -49,4 +49,21 @@ describe "test options" do
     User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :desc]).should == [@abe, @abe2]
     User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :asc]).should == [@abe2, @abe]
   end
+  
+  it "should update keys after the persisted object was edited and sort properly" do
+    @abe.update_attributes :name => "Zed", :age => 12, :wage => 10.0, :address => "Santa Fe"
+
+    $redis.zcard("user:name_ids").to_i.should == User.count
+    $redis.zcard("user:age_ids").to_i.should == User.count
+    $redis.zcard("user:wage_ids").to_i.should == User.count
+
+    User.find(:all, :order => [:name, :asc]).should == [@dan, @michael, @todd, @abe]
+    User.find(:all, :order => [:name, :desc]).should == [@abe, @todd, @michael, @dan]
+        
+    User.find(:all, :order => [:age, :asc]).should == [@abe, @todd, @michael, @dan]
+    User.find(:all, :order => [:age, :desc]).should == [@dan, @michael, @todd, @abe]
+    
+    User.find(:all, :order => [:wage, :asc]).should == [@abe, @todd, @dan, @michael]
+    User.find(:all, :order => [:wage, :desc]).should == [@michael, @dan, @todd, @abe]
+  end
 end

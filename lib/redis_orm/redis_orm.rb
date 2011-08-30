@@ -456,6 +456,14 @@ module RedisOrm
           prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
           prop_value = instance_variable_get(:"@#{prop[:name]}")
 
+          if prop[:options][:sortable]
+            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+            # remove id from every indexed property
+            @@indices[model_name].each do |index|
+              $redis.zrem "#{construct_prepared_index(index)}:#{prop[:name]}_ids", @id
+            end
+          end
+
           indices = @@indices[model_name].inject([]) do |sum, models_index|
             if models_index[:name].is_a?(Array)
               if models_index[:name].include?(prop[:name])
@@ -522,24 +530,6 @@ module RedisOrm
  
         @id = get_next_id
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
-        # if some property need to be sortable add id of the record to the appropriate sorted set
-        @@properties[model_name].each do |prop|
-          if prop[:options][:sortable]
-            property_value = instance_variable_get(:"@#{prop[:name]}")
-            score = case prop[:class]
-              when "Integer"; property_value.to_f
-              when "Float"; property_value.to_f
-              when "String"; calculate_key_for_zset(property_value)
-              when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
-              when "Time"; property_value.to_f
-            end
-          end
-          $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
-          # add to every indexed property
-          @@indices[model_name].each do |index|
-            $redis.zadd "#{construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
-          end
-        end
         @persisted = true
         self.created_at = Time.now if respond_to? :created_at
       end
@@ -568,6 +558,23 @@ module RedisOrm
 
         if prop_changes && prop_changes.size > 2
           instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
+        end
+        
+        # if some property need to be sortable add id of the record to the appropriate sorted set
+        if prop[:options][:sortable]
+          property_value = instance_variable_get(:"@#{prop[:name]}")
+          score = case prop[:class]
+            when "Integer"; property_value.to_f
+            when "Float"; property_value.to_f
+            when "String"; calculate_key_for_zset(property_value)
+            when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
+            when "Time"; property_value.to_f
+          end
+          $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
+          # add to every indexed property
+          @@indices[model_name].each do |index|
+            $redis.zadd "#{construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
+          end
         end
       end
 
