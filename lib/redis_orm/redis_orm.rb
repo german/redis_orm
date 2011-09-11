@@ -311,6 +311,14 @@ module RedisOrm
       def create(options = {})
         obj = new(options, nil, false)
         obj.save
+
+        # make possible binding related models while creating class instance
+        options.each do |k, v|
+          if @@associations[model_name].detect{|h| h[:foreign_model] == k || h[:options][:as] == k}
+            obj.send("#{k}=", v)
+          end
+        end
+
         obj
       end      
       
@@ -365,7 +373,7 @@ module RedisOrm
     def to_a
       [self]
     end
-
+    
     # is called from RedisOrm::Associations::HasMany to save backlinks to saved records
     def get_associations
       @@associations[self.model_name]
@@ -379,6 +387,7 @@ module RedisOrm
     def initialize(attributes = {}, id = nil, persisted = false)
       @persisted = persisted
 
+      # if this model uses uuid then id is a string otherwise it should be casted to Integer class
       id = @@use_uuid_as_id[model_name] ? id : id.to_i
 
       instance_variable_set(:"@id", id) if id
@@ -632,13 +641,16 @@ module RedisOrm
       if !@@associations[model_name].empty?
         @@associations[model_name].each do |assoc|        
           if :belongs_to == assoc[:type]
-            if !self.send(assoc[:foreign_model]).nil?
+            # if assoc has :as option
+            foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
+            
+            if !self.send(foreign_model_name).nil?
               @@indices[model_name].each do |index|
                 keys_to_delete = if index[:name].is_a?(Array)
                   full_index = index[:name].inject([]){|sum, index_part| sum << index_part}.join(':')
-                  $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
+                  $redis.keys "#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
                 else
-                  ["#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
+                  ["#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
                 end
                 keys_to_delete.each do |key| 
                   index[:options][:unique] ? $redis.del(key) : $redis.zrem(key, @id)
