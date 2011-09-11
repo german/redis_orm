@@ -10,6 +10,27 @@ class Comment < RedisOrm::Base
   property :body, String
     
   belongs_to :article
+  has_many :comments, :as => :replies
+  belongs_to :comment, :as => :reply_to
+end
+
+module BelongsToModelWithinModule
+  class Reply < RedisOrm::Base
+    property :body, String, :default => "test"
+    belongs_to :article, :as => :essay
+  end
+end
+
+module HasManyModelWithinModule
+  class SpecialComment < RedisOrm::Base
+    property :body, String, :default => "test"
+    belongs_to :brochure, :as => :book
+  end
+
+  class Brochure < RedisOrm::Base
+    property :title, String
+    has_many :special_comments
+  end
 end
 
 class Profile < RedisOrm::Base
@@ -205,9 +226,9 @@ describe "check associations" do
     @article.categories << [@cat1, @cat2]
 
     @cat1.articles.count.should == 1
-    @cat1.articles[0].id.should == @article.id
+    @cat1.articles[0].should == @article
     @cat2.articles.count.should == 1
-    @cat2.articles[0].id.should == @article.id
+    @cat2.articles[0].should == @article
 
     @article.categories.size.should == 2
     @article.categories.count.should == 2
@@ -218,10 +239,10 @@ describe "check associations" do
     @article.categories.map{|c| c.id}.include?(@cat3.id).should be
 
     @cat1.articles.count.should == 1
-    @cat1.articles[0].id.should == @article.id
+    @cat1.articles[0].should == @article
 
     @cat3.articles.count.should == 1
-    @cat3.articles[0].id.should == @article.id
+    @cat3.articles[0].should == @article
 
     @cat2.articles.count.should == 0
 
@@ -302,5 +323,31 @@ describe "check associations" do
     rf = Message.last
     rf.replay_to.should be
     rf.replay_to.id.should == Message.first.id
+  end
+
+  it "should find associations within modules" do    
+    BelongsToModelWithinModule::Reply.count.should == 0
+    essay = Article.create :title => "Red is cluster"
+    BelongsToModelWithinModule::Reply.create :essay => essay
+    BelongsToModelWithinModule::Reply.count.should == 1
+    reply = BelongsToModelWithinModule::Reply.last
+    reply.essay.should == essay
+    
+    HasManyModelWithinModule::SpecialComment.count.should == 0
+    book = HasManyModelWithinModule::Brochure.create :title => "Red is unstable"
+    HasManyModelWithinModule::SpecialComment.create :book => book
+    HasManyModelWithinModule::Brochure.count.should == 1
+    HasManyModelWithinModule::SpecialComment.count.should == 1
+  end
+
+  it "should properly handle self-referencing model both belongs_to and has_many/has_one associations" do
+    comment1 = Comment.create :body => "comment1"
+    comment11 = Comment.create :body => "comment1.1"
+    comment12 = Comment.create :body => "comment1.2"
+    
+    comment1.replies = [comment11, comment12]
+    comment1.replies.count.should == 2
+    comment11.reply_to.should == comment1
+    comment12.reply_to.should == comment1
   end
 end

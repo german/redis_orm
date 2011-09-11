@@ -14,20 +14,22 @@ module RedisOrm
         class_associations = class_variable_get(:"@@associations")
         class_variable_get(:"@@associations")[model_name] << {:type => :belongs_to, :foreign_model => foreign_model, :options => options}
 
-        foreign_model_name = if options[:as]
-          options[:as].to_sym
-        else
-          foreign_model.to_sym
-        end
-
-        define_method foreign_model_name.to_sym do
+        foreign_model_name = options[:as] ? options[:as].to_sym : foreign_model.to_sym
+        
+        define_method foreign_model_name do
           if options[:polymorphic]
             model_type = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
             if model_type
               model_type.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}_id")
             end
           else
-            foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+            # find model even if it's in some module
+            full_model_scope = RedisOrm::Base.descendants.detect{|desc| desc.to_s.split('::').include?(foreign_model.to_s.camelize) }
+            if full_model_scope
+              full_model_scope.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+            else
+              foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+            end
           end
         end
 
@@ -36,6 +38,8 @@ module RedisOrm
         define_method "#{foreign_model_name}=" do |assoc_with_record|
           # we need to store this to clear old association later
           old_assoc = self.send(foreign_model_name)
+          # find model even if it's in some module
+          full_model_scope = RedisOrm::Base.descendants.detect{|desc| desc.to_s.split('::').include?(foreign_model.to_s.camelize) }
           
           if options[:polymorphic]
             $redis.set("#{model_name}:#{id}:#{foreign_model_name}_type", assoc_with_record.model_name)
@@ -43,7 +47,7 @@ module RedisOrm
           else
             if assoc_with_record.nil?
               $redis.del("#{model_name}:#{id}:#{foreign_model_name}")
-            elsif assoc_with_record.model_name == foreign_model.to_s
+            elsif [foreign_model.to_s, full_model_scope.model_name].include?(assoc_with_record.model_name)
               $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
             else
               raise TypeMismatchError

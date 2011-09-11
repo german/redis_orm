@@ -8,11 +8,7 @@ module RedisOrm
         class_associations = class_variable_get(:"@@associations")
         class_associations[model_name] << {:type => :has_many, :foreign_models => foreign_models, :options => options}
 
-        foreign_models_name = if options[:as]
-          options[:as].to_sym
-        else
-          foreign_models.to_sym
-        end
+        foreign_models_name = options[:as] ? options[:as].to_sym : foreign_models.to_sym
 
         define_method foreign_models_name.to_sym do
           Associations::HasManyProxy.new(model_name, id, foreign_models, options)
@@ -51,17 +47,20 @@ module RedisOrm
               save_index_for_associated_record(index, record, [model_name, id, record.model_name.pluralize]) # record.model_name.pluralize => foreign_models_name
             end
 
-            if !options[:as]
-              # article.comments = [comment1, comment2] 
-              # iterate through the array of comments and create backlink
-              # check whether *record* object has *has_many* declaration and TODO it states *self.model_name* in plural
-              if class_associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !$redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
-                $redis.zadd("#{record.model_name}:#{record.id}:#{model_name.pluralize}", Time.now.to_f, id)
-              # check whether *record* object has *has_one* declaration and TODO it states *self.model_name*
-              elsif record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym}
-                # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
-                $redis.set("#{record.model_name}:#{record.id}:#{model_name}", id)
-              end
+            # article.comments = [comment1, comment2] 
+            # iterate through the array of comments and create backlink
+            # check whether *record* object has *has_many* declaration and it states *self.model_name* in plural
+            if assoc = class_associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !$redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
+              assoc_foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : model_name.pluralize
+              key = "#{record.model_name}:#{record.id}:#{assoc_foreign_models_name}"
+              $redis.zadd(key, Time.now.to_f, id) if !$redis.zrank(key, id)
+            end
+              
+            # check whether *record* object has *has_one* declaration and it states *self.model_name*
+            if assoc = record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym}
+              foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : model_name
+              # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
+              $redis.set("#{record.model_name}:#{record.id}:#{foreign_model_name}", id)
             end
           end
         end
