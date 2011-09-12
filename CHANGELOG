@@ -1,3 +1,12 @@
+v0.6 [12-09-2011]
+* added equality operator for object, #to_s method for inspecting objects, #find! which could throw RecordNotFound error
+* added self.descendants class method which returns all inherited from RedisOrm::Base classes
+* introduced :sortable option (in property declaration and #find conditions hash) - rudimentary ability to sort records by any property (not just by default 'created_at')
+* now handling models withing modules definitions (test for this in associations_test.rb)
+* properly handling :as parameter in options for has_many/belongs_to self-references
+* binding related models while creating model instance (like this: Article.create(:comment => comment))
+* bunch of small fixes, updated tests and README.md
+
 v0.5.1 [27-07-2011]
 * added support of uuid as an id/primary key
 * added documentation on uuid support and connection to the redis server

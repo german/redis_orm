@@ -11,6 +11,7 @@ lib/redis_orm/associations/has_many_helper.rb
 lib/redis_orm/associations/has_many_proxy.rb
 lib/redis_orm/associations/has_one.rb
 lib/redis_orm/redis_orm.rb
+lib/redis_orm/utils.rb
 redis_orm.gemspec
 test/association_indices_test.rb
 test/associations_test.rb
@@ -23,6 +24,7 @@ test/exceptions_test.rb
 test/has_one_has_many_test.rb
 test/indices_test.rb
 test/options_test.rb
+test/order_test.rb
 test/polymorphic_test.rb
 test/redis.conf
 test/test_helper.rb
