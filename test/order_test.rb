@@ -66,4 +66,22 @@ describe "test options" do
     User.find(:all, :order => [:wage, :asc]).should == [@abe, @todd, @dan, @michael]
     User.find(:all, :order => [:wage, :desc]).should == [@michael, @dan, @todd, @abe]
   end
+  
+  it "should update keys after the persisted object was deleted and sort properly" do
+    user_count = User.count
+    @abe.destroy
+
+    $redis.zcard("user:name_ids").to_i.should == user_count - 1
+    $redis.zcard("user:age_ids").to_i.should == user_count - 1
+    $redis.zcard("user:wage_ids").to_i.should == user_count - 1
+
+    User.find(:all, :order => [:name, :asc]).should == [@dan, @michael, @todd]
+    User.find(:all, :order => [:name, :desc]).should == [@todd, @michael, @dan]
+        
+    User.find(:all, :order => [:age, :asc]).should == [@todd, @michael, @dan]
+    User.find(:all, :order => [:age, :desc]).should == [@dan, @michael, @todd]
+    
+    User.find(:all, :order => [:wage, :asc]).should == [@todd, @dan, @michael]
+    User.find(:all, :order => [:wage, :desc]).should == [@michael, @dan, @todd]
+  end
 end

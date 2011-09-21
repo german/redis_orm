@@ -633,6 +633,10 @@ module RedisOrm
 
       @@properties[model_name].each do |prop|
         $redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
+        
+        if prop[:options][:sortable]
+          $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+        end
       end
 
       $redis.zrem "#{model_name}:ids", @id
