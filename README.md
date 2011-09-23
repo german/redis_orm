@@ -29,15 +29,25 @@ end
 
 ## Installing redis_orm
 
+stable release:
+
+```sh
 gem install redis_orm
+```
 
-or 
+or edge version:
 
+```sh
 git clone git://github.com/german/redis_orm.git
-
 cd redis_orm
-
 bundle install
+```
+
+To run the tests you should have redis installed already. Please check [Redis download/installation page](http://redis.io/download).
+
+```sh
+rake test
+```
 
 ## Setting up a connection to the redis server
 
