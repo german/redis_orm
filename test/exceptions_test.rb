@@ -47,4 +47,9 @@ describe "exceptions test" do
     User.find(12).should == nil
     lambda{ User.find! 12 }.should raise_error(RedisOrm::RecordNotFound)
   end
+
+  it "should throw an exception if there was an error while creating object with #create! method" do
+    jigsaw = Jigsaw.create :title => "jigsaw"
+    lambda { User.create!(:name => "John", :age => 44, :profile => jigsaw) }.should raise_error(RedisOrm::TypeMismatchError)
+  end
 end
