@@ -18,9 +18,9 @@ describe "test options" do
     @michael = User.create :name => "Michael",  :age => 25, :wage => 60000.0,   :address => "Bellevue"
     @todd    = User.create :name => "Todd",     :age => 22, :wage => 30000.0,   :address => "Bellevue"
   end
-  
+
   it "should return records in specified order" do
-    $redis.zcard("user:name_ids").to_i.should == User.count
+    $redis.llen("user:name_ids").to_i.should == User.count
     $redis.zcard("user:age_ids").to_i.should == User.count
     $redis.zcard("user:wage_ids").to_i.should == User.count
     
@@ -49,11 +49,11 @@ describe "test options" do
     User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :desc]).should == [@abe, @abe2]
     User.find(:all, :conditions => {:name => "Abe"}, :order => [:wage, :asc]).should == [@abe2, @abe]
   end
-  
+
   it "should update keys after the persisted object was edited and sort properly" do
     @abe.update_attributes :name => "Zed", :age => 12, :wage => 10.0, :address => "Santa Fe"
 
-    $redis.zcard("user:name_ids").to_i.should == User.count
+    $redis.llen("user:name_ids").to_i.should == User.count
     $redis.zcard("user:age_ids").to_i.should == User.count
     $redis.zcard("user:wage_ids").to_i.should == User.count
 
@@ -66,12 +66,12 @@ describe "test options" do
     User.find(:all, :order => [:wage, :asc]).should == [@abe, @todd, @dan, @michael]
     User.find(:all, :order => [:wage, :desc]).should == [@michael, @dan, @todd, @abe]
   end
-  
+
   it "should update keys after the persisted object was deleted and sort properly" do
     user_count = User.count
     @abe.destroy
 
-    $redis.zcard("user:name_ids").to_i.should == user_count - 1
+    $redis.llen("user:name_ids").to_i.should == user_count - 1
     $redis.zcard("user:age_ids").to_i.should == user_count - 1
     $redis.zcard("user:wage_ids").to_i.should == user_count - 1
 
@@ -83,5 +83,19 @@ describe "test options" do
     
     User.find(:all, :order => [:wage, :asc]).should == [@todd, @dan, @michael]
     User.find(:all, :order => [:wage, :desc]).should == [@michael, @dan, @todd]
+  end
+
+  it "should sort objects with more than 3-4 symbols" do
+    vladislav = User.create :name => "Vladislav", :age => 19, :wage => 120.0
+    vladimir = User.create :name => "Vladimir", :age => 22, :wage => 220.5
+    vlad = User.create :name => "Vlad", :age => 29, :wage => 1200.0
+    
+    #User.find(:all, :order => [:name, :desc], :limit => 3).should == [vladislav, vladimir, vlad]
+    User.find(:all, :order => [:name, :desc]).should == [vladislav, vladimir, vlad, @todd, @michael, @dan, @abe]
+    #puts 'User.find(:all, :order => [:name, :asc]) - ' + User.find(:all, :order => [:name, :asc]).inspect
+    #puts 'User.find(:all, :order => [:name, :asc], :limit => 3) - ' + User.find(:all, :order => [:name, :asc], :limit => 3).inspect
+    #puts 'User.find(:all, :order => [:name, :asc], :offset => 4) - ' + User.find(:all, :order => [:name, :asc], :offset => 4).inspect
+    #puts 'User.find(:all, :order => [:name, :asc], :offset => 4, :limit => 3) - ' + User.find(:all, :order => [:name, :asc], :offset => 4, :limit => 3).inspect
+    #User.find(:all, :order => [:name, :asc], :limit => 3, :offset => 4).should == [vlad, vladimir, vladislav]
   end
 end

@@ -69,7 +69,7 @@ describe "test options" do
     Album.find(:all, :limit => 1).size.should == 1
     Album.find!(:all, :limit => 1).size.should == 1
   end
-  
+
   it "should return correct array when :limit and :offset options are provided" do
     @album.photos.count.should == 0
 
@@ -88,8 +88,9 @@ describe "test options" do
     @album.photos.find(:all, :limit => 1, :offset => 1).size.should == 1
     
     Photo.find(:all).size.should == 2
-    Photo.find(:first).id.should == @photo1.id
-    Photo.find(:last).id.should == @photo2.id
+
+    Photo.find(:first).should == @photo1
+    Photo.find(:last).should == @photo2
     
     Photo.find(:all, :conditions => {:image => "facepalm.jpg"}).size.should == 1
     Photo.find(:all, :conditions => {:image => "boobs.png"}).size.should == 1
@@ -97,25 +98,25 @@ describe "test options" do
     Photo.find(:all, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).size.should == 1
     Photo.find(:all, :conditions => {:image => "boobs.png", :image_type => "png"}).size.should == 1
         
-    Photo.find(:first, :conditions => {:image => "facepalm.jpg"}).id.should == @photo1.id
-    Photo.find(:first, :conditions => {:image => "boobs.png"}).id.should == @photo2.id
+    Photo.find(:first, :conditions => {:image => "facepalm.jpg"}).should == @photo1
+    Photo.find(:first, :conditions => {:image => "boobs.png"}).should == @photo2
     
-    Photo.find(:first, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).id.should == @photo1.id
-    Photo.find(:first, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
+    Photo.find(:first, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).should == @photo1
+    Photo.find(:first, :conditions => {:image => "boobs.png", :image_type => "png"}).should == @photo2
     
-    Photo.find(:last, :conditions => {:image => "facepalm.jpg"}).id.should == @photo1.id
-    Photo.find(:last, :conditions => {:image => "boobs.png"}).id.should == @photo2.id
+    Photo.find(:last, :conditions => {:image => "facepalm.jpg"}).should == @photo1
+    Photo.find(:last, :conditions => {:image => "boobs.png"}).should == @photo2
     
-    Photo.find(:last, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).id.should == @photo1.id
-    Photo.find(:last, :conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
+    Photo.find(:last, :conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).should == @photo1
+    Photo.find(:last, :conditions => {:image => "boobs.png", :image_type => "png"}).should == @photo2
   end
 
   it "should accept options for #first and #last methods" do
-    Photo.first(:conditions => {:image => "facepalm.jpg"}).id.should == @photo1.id
-    Photo.first(:conditions => {:image => "boobs.png"}).id.should == @photo2.id
+    Photo.first(:conditions => {:image => "facepalm.jpg"}).should == @photo1
+    Photo.first(:conditions => {:image => "boobs.png"}).should == @photo2
     
-    Photo.last(:conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).id.should == @photo1.id
-    Photo.last(:conditions => {:image => "boobs.png", :image_type => "png"}).id.should == @photo2.id
+    Photo.last(:conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).should == @photo1
+    Photo.last(:conditions => {:image => "boobs.png", :image_type => "png"}).should == @photo2
   end
   
   it "should correctly save boolean values" do

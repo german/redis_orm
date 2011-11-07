@@ -193,6 +193,8 @@ module RedisOrm
           [options[:offset].to_i, options[:limit].to_i]
         elsif options[:limit]
           [0, options[:limit].to_i]
+        else
+          [0, -1]
         end
         
         order_max_limit = Time.now.to_f
@@ -214,30 +216,48 @@ module RedisOrm
           end
         end
 
+        order_by_property_is_string = false
+        
         # if not array => created_at native order (in which ids were pushed to "#{model_name}:ids" set by default)
         direction = if !options[:order].blank?
-          if options[:order].is_a?(Array)
+          property = {}
+          dir = if options[:order].is_a?(Array)
+            property = @@properties[model_name].detect{|prop| prop[:name].to_s == options[:order].first.to_s}
             # for String values max limit for search key could be 1.0, but for Numeric values there's actually no limit
             order_max_limit = 100_000_000_000
             ids_key = "#{prepared_index}:#{options[:order].first}_ids"
             options[:order].size == 2 ? options[:order].last : 'asc'
           else
+            property = @@properties[model_name].detect{|prop| prop[:name].to_s == options[:order].to_s}
             ids_key = prepared_index
             options[:order]
           end
+          if property && property[:class].eql?("String") && property[:options][:sortable]
+            order_by_property_is_string = true
+          end
+          dir
         else
           ids_key = prepared_index
           'asc'
         end
 
-        if index && index[:options][:unique]
-          id = $redis.get prepared_index
-          model_name.to_s.camelize.constantize.find(id)
-        else
+        if order_by_property_is_string
+          #p '$redis.lrange(ids_key, 0, -1) - ' + $redis.lrange(ids_key, 0, -1).inspect
           if direction.to_s == 'desc'
-            $redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
+            $redis.lrange(ids_key, 0, -1).reverse.compact.collect{|id| find(id.split(':').last)}
+          else  
+            $redis.lrange(ids_key, *limit).compact.collect{|id| find(id.split(':').last)}
+          end
+        else
+          if index && index[:options][:unique]
+            id = $redis.get prepared_index
+            model_name.to_s.camelize.constantize.find(id)
           else
-            $redis.zrangebyscore(ids_key, 0, order_max_limit, :limit => limit).compact.collect{|id| find(id)}
+            if direction.to_s == 'desc'
+              $redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
+            else
+              $redis.zrangebyscore(ids_key, 0, order_max_limit, :limit => limit).compact.collect{|id| find(id)}
+            end
           end
         end
       end
@@ -464,12 +484,20 @@ module RedisOrm
           
           prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
           prop_value = instance_variable_get(:"@#{prop[:name]}")
-
+          # TODO DRY in destroy also
           if prop[:options][:sortable]
-            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
-            # remove id from every indexed property
-            @@indices[model_name].each do |index|
-              $redis.zrem "#{construct_prepared_index(index)}:#{prop[:name]}_ids", @id
+            if prop[:class].eql?("String")
+              $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
+              # remove id from every indexed property
+              @@indices[model_name].each do |index|
+                $redis.lrem "#{construct_prepared_index(index)}:#{prop[:name]}_ids", 1, "#{prop_value}:#{@id}"
+              end
+            else
+              $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+              # remove id from every indexed property
+              @@indices[model_name].each do |index|
+                $redis.zrem "#{construct_prepared_index(index)}:#{prop[:name]}_ids", @id
+              end
             end
           end
 
@@ -571,18 +599,28 @@ module RedisOrm
         
         # if some property need to be sortable add id of the record to the appropriate sorted set
         if prop[:options][:sortable]
-          property_value = instance_variable_get(:"@#{prop[:name]}")
-          score = case prop[:class]
-            when "Integer"; property_value.to_f
-            when "Float"; property_value.to_f
-            when "String"; calculate_key_for_zset(property_value)
-            when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
-            when "Time"; property_value.to_f
-          end
-          $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
-          # add to every indexed property
-          @@indices[model_name].each do |index|
-            $redis.zadd "#{construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
+          property_value = instance_variable_get(:"@#{prop[:name]}").to_s
+          if prop[:class].eql?("String")
+            sortable_key = "#{model_name}:#{prop[:name]}_ids"
+            el_or_position_to_insert = find_position_to_insert(sortable_key, property_value)
+            el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
+            # add to every indexed property
+            @@indices[model_name].each do |index|
+              sortable_key = "#{construct_prepared_index(index)}:#{prop[:name]}_ids"
+              el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
+            end
+          else
+            score = case prop[:class]
+              when "Integer"; property_value.to_f
+              when "Float"; property_value.to_f
+              when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
+              when "Time"; property_value.to_f
+            end
+            $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
+            # add to every indexed property
+            @@indices[model_name].each do |index|
+              $redis.zadd "#{construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
+            end
           end
         end
       end
@@ -612,6 +650,44 @@ module RedisOrm
       true # if there were no errors just return true, so *if* conditions would work
     end
 
+    def find_position_to_insert(sortable_key, value)
+      end_index = $redis.llen(sortable_key)
+
+      return 0 if end_index == 0
+      
+      start_index = 0
+      pivot_index = end_index / 2
+      
+      start_el = $redis.lindex(sortable_key, start_index)
+      end_el   = $redis.lindex(sortable_key, end_index - 1)
+      pivot_el = $redis.lindex(sortable_key, pivot_index)
+      
+      while start_index != end_index
+        # aa..ab..ac..bd <- ad
+        if start_el.split(':').first > value # Michael > Abe
+          return 0
+        elsif end_el.split(':').first < value # Abe < Todd 
+          return end_el
+        elsif start_el.split(':').first == value # Abe == Abe
+          return start_el
+        elsif pivot_el.split(':').first == value # Todd == Todd
+          return pivot_el
+        elsif (start_el.split(':').first < value) && (pivot_el.split(':').first > value)
+          start_index = start_index
+          end_index   = pivot_index
+          pivot_index = start_index + (pivot_index / 2)
+        elsif (pivot_el.split(':').first < value) && (end_el.split(':').first > value) # M < V && Y > V
+          start_index = pivot_index
+          pivot_index = pivot_index + ((end_index - pivot_index) / 2)
+          end_index   = end_index          
+        end
+        start_el = $redis.lindex(sortable_key, start_index)
+        end_el   = $redis.lindex(sortable_key, end_index - 1)
+        pivot_el = $redis.lindex(sortable_key, pivot_index)
+      end
+      start_el
+    end
+    
     def update_attributes(attributes)
       if attributes.is_a?(Hash)
         attributes.each do |key, value|
@@ -632,10 +708,15 @@ module RedisOrm
       end
 
       @@properties[model_name].each do |prop|
+        property_value = instance_variable_get(:"@#{prop[:name]}").to_s
         $redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
         
         if prop[:options][:sortable]
-          $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+          if prop[:class].eql?("String")
+            $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
+          else
+            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+          end
         end
       end
 
