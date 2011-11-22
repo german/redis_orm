@@ -242,10 +242,28 @@ module RedisOrm
         end
 
         if order_by_property_is_string
-          #p '$redis.lrange(ids_key, 0, -1) - ' + $redis.lrange(ids_key, 0, -1).inspect
           if direction.to_s == 'desc'
-            $redis.lrange(ids_key, 0, -1).reverse.compact.collect{|id| find(id.split(':').last)}
-          else  
+            ids_length = $redis.llen(ids_key)
+            limit = if options[:offset] && options[:limit]
+              [(ids_length - options[:offset].to_i - options[:limit].to_i), (ids_length - options[:offset].to_i - 1)]
+            elsif options[:limit]
+              [ids_length - options[:limit].to_i, ids_length]
+            elsif options[:offset]
+              [0, (ids_length - options[:offset].to_i - 1)]
+            else
+              [0, -1]
+            end
+            $redis.lrange(ids_key, *limit).reverse.compact.collect{|id| find(id.split(':').last)}
+          else
+            limit = if options[:offset] && options[:limit]
+              [options[:offset].to_i, (options[:offset].to_i + options[:limit].to_i)]
+            elsif options[:limit]
+              [0, options[:limit].to_i - 1]
+            elsif options[:offset]
+              [options[:offset].to_i, -1]
+            else
+              [0, -1]
+            end
             $redis.lrange(ids_key, *limit).compact.collect{|id| find(id.split(':').last)}
           end
         else

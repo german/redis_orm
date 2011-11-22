@@ -90,12 +90,14 @@ describe "test options" do
     vladimir = User.create :name => "Vladimir", :age => 22, :wage => 220.5
     vlad = User.create :name => "Vlad", :age => 29, :wage => 1200.0
     
-    #User.find(:all, :order => [:name, :desc], :limit => 3).should == [vladislav, vladimir, vlad]
+    User.find(:all, :order => [:name, :desc], :limit => 3).should == [vladislav, vladimir, vlad]
+    User.find(:all, :order => [:name, :desc], :limit => 2, :offset => 4).should == [@michael, @dan]
+    User.find(:all, :order => [:name, :desc], :offset => 3).should == [@todd, @michael, @dan, @abe]
     User.find(:all, :order => [:name, :desc]).should == [vladislav, vladimir, vlad, @todd, @michael, @dan, @abe]
-    #puts 'User.find(:all, :order => [:name, :asc]) - ' + User.find(:all, :order => [:name, :asc]).inspect
-    #puts 'User.find(:all, :order => [:name, :asc], :limit => 3) - ' + User.find(:all, :order => [:name, :asc], :limit => 3).inspect
-    #puts 'User.find(:all, :order => [:name, :asc], :offset => 4) - ' + User.find(:all, :order => [:name, :asc], :offset => 4).inspect
-    #puts 'User.find(:all, :order => [:name, :asc], :offset => 4, :limit => 3) - ' + User.find(:all, :order => [:name, :asc], :offset => 4, :limit => 3).inspect
-    #User.find(:all, :order => [:name, :asc], :limit => 3, :offset => 4).should == [vlad, vladimir, vladislav]
+
+    User.find(:all, :order => [:name, :asc], :limit => 3, :offset => 4).should == [vlad, vladimir, vladislav]
+    User.find(:all, :order => [:name, :asc], :offset => 3).should == [@todd, vlad, vladimir, vladislav]
+    User.find(:all, :order => [:name, :asc], :limit => 3).should == [@abe, @dan, @michael]
+    User.find(:all, :order => [:name, :asc]).should == [@abe, @dan, @michael, @todd, vlad, vladimir, vladislav]
   end
 end
