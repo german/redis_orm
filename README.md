@@ -94,6 +94,8 @@ Following options are available in property declaration:
 
     if *true* is specified then you could sort records by this property later
 
+*Note* that when you're using :sortable option redis_orm maintains one additional list per attribute.
+
 ## Searching records by the value
 
 Usually it's done via declaring an index and using *:conditions* hash or dynamic finders. For example:
