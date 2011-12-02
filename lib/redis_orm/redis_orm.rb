@@ -692,8 +692,9 @@ module RedisOrm
           return pivot_el
         elsif (start_el.split(':').first < value) && (pivot_el.split(':').first > value)
           start_index = start_index
-          end_index   = pivot_index
-          pivot_index = start_index + (pivot_index / 2)
+          prev_pivot_index = pivot_index
+          pivot_index = start_index + ((end_index - pivot_index) / 2)
+          end_index   = prev_pivot_index
         elsif (pivot_el.split(':').first < value) && (end_el.split(':').first > value) # M < V && Y > V
           start_index = pivot_index
           pivot_index = pivot_index + ((end_index - pivot_index) / 2)
