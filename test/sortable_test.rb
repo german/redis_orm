@@ -117,4 +117,14 @@ describe "test options" do
     20.times{|i| rev_users << SortableUser.create(:name => "user#{i}") }
     SortableUser.all(:order => [:name, :desc]).should == rev_users.sort{|n,m| n.name <=> m.name}.reverse
   end
+
+  it "should properly store records with the same names" do
+    users = []
+    users << SortableUser.create(:name => "user#1")
+    users << SortableUser.create(:name => "user#2")
+    users << SortableUser.create(:name => "user#1")
+    users << SortableUser.create(:name => "user#2")
+    SortableUser.all(:order => [:name, :desc]).should == users.sort{|n,m| n.name <=> m.name}.reverse
+    SortableUser.all(:order => [:name, :asc]).should == users.sort{|n,m| n.name <=> m.name}
+  end
 end

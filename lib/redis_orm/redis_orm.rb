@@ -675,11 +675,11 @@ module RedisOrm
       
       start_index = 0
       pivot_index = end_index / 2
-      
+
       start_el = $redis.lindex(sortable_key, start_index)
       end_el   = $redis.lindex(sortable_key, end_index - 1)
       pivot_el = $redis.lindex(sortable_key, pivot_index)
-      
+
       while start_index != end_index
         # aa..ab..ac..bd <- ad
         if start_el.split(':').first > value # Michael > Abe
@@ -690,6 +690,8 @@ module RedisOrm
           return start_el
         elsif pivot_el.split(':').first == value # Todd == Todd
           return pivot_el
+        elsif end_el.split(':').first == value
+          return end_el
         elsif (start_el.split(':').first < value) && (pivot_el.split(':').first > value)
           start_index = start_index
           prev_pivot_index = pivot_index
