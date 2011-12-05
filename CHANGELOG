@@ -1,3 +1,7 @@
+v0.6.1 [05-12-2011]
+* rewritten sortable functionality for attributes which values are strings
+* added Gemfile to the project, improved tests
+
 v0.6 [12-09-2011]
 * added equality operator for object, #to_s method for inspecting objects, #find! which could throw RecordNotFound error
 * added self.descendants class method which returns all inherited from RedisOrm::Base classes

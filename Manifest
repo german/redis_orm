@@ -1,8 +1,10 @@
 CHANGELOG
+Gemfile
 LICENSE
 Manifest
 README.md
 Rakefile
+benchmarks/sortable_benchmark.rb
 lib/redis_orm.rb
 lib/redis_orm/active_model_behavior.rb
 lib/redis_orm/associations/belongs_to.rb
@@ -24,9 +26,9 @@ test/exceptions_test.rb
 test/has_one_has_many_test.rb
 test/indices_test.rb
 test/options_test.rb
-test/order_test.rb
 test/polymorphic_test.rb
 test/redis.conf
+test/sortable_test.rb
 test/test_helper.rb
 test/uuid_as_id_test.rb
 test/validations_test.rb
