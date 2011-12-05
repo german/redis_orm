@@ -94,7 +94,7 @@ Following options are available in property declaration:
 
     if *true* is specified then you could sort records by this property later
 
-*Note* that when you're using :sortable option redis_orm maintains one additional list per attribute.
+*Note* that when you're using :sortable option redis_orm maintains one additional list per attribute. Also note that the #create method could be 3 times slower in some cases (this will be improved in future releases), while the #find performance is basically the same (see the "benchmarks/sortable_benchmark.rb").
 
 ## Searching records by the value
 
