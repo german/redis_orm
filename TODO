@@ -1,4 +1,5 @@
 * add rake task to create index keys to existing records after the index was added to the column, something like *rake redis_orm:update_index_on zip*
 * add named_scopes
+* Sinatra based admin interface to overview all redis_orm keys in redis
 * ActiveRecord 3.x API
 * refactoring ;)
