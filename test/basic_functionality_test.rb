@@ -1,36 +1,9 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class User < RedisOrm::Base
-  property :name, String
-  property :age, Integer
-  property :wage, Float
-  property :male, RedisOrm::Boolean
-
-  property :created_at, Time
-  property :modified_at, Time
-end
-
-class DefaultUser < RedisOrm::Base
-  property :name, String, :default => "german"
-  property :age, Integer, :default => 26
-  property :wage, Float, :default => 256.25
-  property :male, RedisOrm::Boolean, :default => true
-  property :admin, RedisOrm::Boolean, :default => false
-  
-  property :created_at, Time
-  property :modified_at, Time
-end
-
-class TimeStamp < RedisOrm::Base
-  timestamps
-end
-
-class Person;end
-
 describe "check basic functionality" do
   it "should have 3 models in descendants" do
     RedisOrm::Base.descendants.should include(User, DefaultUser, TimeStamp)
-    RedisOrm::Base.descendants.should_not include(Person)
+    RedisOrm::Base.descendants.should_not include(EmptyPerson)
   end
   
   it "should return the same user" do

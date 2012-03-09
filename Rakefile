@@ -1,6 +1,8 @@
 #require 'psych'
 require 'rubygems'
 require 'rake'
+require 'rake/testtask'
+
 =begin
 require 'echoe'
 
@@ -14,20 +16,11 @@ Echoe.new('redis_orm', '0.6.1') do |p|
 end
 =end
 
-#require 'rake/testtask'
-#$LOAD_PATH << File.join(File.dirname(__FILE__), 'lib')
+task :default => :test
 
-=begin
-desc 'Test the redis_orm gem.'
+desc 'Test the redis_orm functionality'
 Rake::TestTask.new(:test) do |t|
-  #t.libs << 'lib'
-  t.pattern = 'test/**/*_test.rb'
+  t.libs << 'lib'
+  t.test_files = FileList['test/callbacks_test.rb', 'test/associations_test.rb', 'test/polymorphic_test.rb', 'test/basic_functionality_test.rb', 'test/dynamic_finders_test.rb', 'test/changes_array_test.rb'] #FileList['test/*_test.rb']
   t.verbose = true
-end
-=end
-
-task :test do |t|
-  Dir['test/**/*_test.rb'].each do |file|
-    puts `ruby -I./lib #{file}`
-  end
 end

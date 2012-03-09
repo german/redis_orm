@@ -1,11 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class User < RedisOrm::Base
-  property :name, String
-  property :age, Integer, :default => 26
-  property :gender, RedisOrm::Boolean, :default => true
-end
-
 describe "check associations" do
   it "should return correct _changes array" do
     user = User.new :name => "german"

@@ -1,44 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class CatalogItem < RedisOrm::Base
-  property :title, String
-
-  belongs_to :resource, :polymorphic => true
-end
-
-class Book < RedisOrm::Base
-  property :price, Integer, :default => 0 # in cents
-  property :title, String
-  
-  has_one :catalog_item
-end
-
-class Giftcard < RedisOrm::Base
-  property :price, Integer, :default => 0 # in cents
-  property :title, String
-
-  has_one :catalog_item
-end
-
-# for second test
-class Person < RedisOrm::Base
-  property :name, String
-  
-  belongs_to :location, :polymorphic => true
-end
-
-class Country < RedisOrm::Base
-  property :name, String
-
-  has_many :people
-end
-
-class City < RedisOrm::Base
-  property :name, String
-
-  has_many :people
-end
-
 describe "check polymorphic property" do
   it "should provide proper associations and save records correctly for has_one/belongs_to polymorphic" do
     book = Book.new :title => "Permutation City", :author => "Egan Greg", :price => 1529
