@@ -1,42 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class Album < RedisOrm::Base
-  property :title, String
-
-  has_one :photo, :as => :front_photo
-  has_many :photos, :dependent => :destroy
-end
-
-class Category < RedisOrm::Base
-  property :title, String
-
-  has_many :photos, :dependent => :nullify
-end
-
-class Photo < RedisOrm::Base
-  property :image, String
-  property :image_type, String
-  
-  property :checked, RedisOrm::Boolean, :default => false
-  index :checked
-  
-  property :inverted, RedisOrm::Boolean, :default => true
-  index :inverted
-  
-  index :image
-  index [:image, :image_type]
-  
-  belongs_to :album
-  belongs_to :user
-  belongs_to :category
-end
-
-class User < RedisOrm::Base
-  property :name, String
-  
-  has_one :photo, :dependent => :destroy
-end
-
 describe "test options" do
   before(:each) do
     @album = Album.new

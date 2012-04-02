@@ -1,23 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class User < RedisOrm::Base
-  property :first_name, String
-  property :last_name, String
-
-  index :first_name
-  index :last_name
-  index [:first_name, :last_name]
-end
-
-class OmniUser < RedisOrm::Base
-  property :email, String
-  property :uid, Integer
-
-  index :email, :case_insensitive => true
-  index :uid
-  index [:email, :uid], :case_insensitive => true
-end
-
 describe "check indices" do
   it "should change index accordingly to the changes in the model" do
     user = User.new :first_name => "Robert", :last_name => "Pirsig"

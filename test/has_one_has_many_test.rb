@@ -1,17 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class Profile < RedisOrm::Base
-  property :name, String
-
-  has_one :location
-end
-
-class Location < RedisOrm::Base
-  property :coordinates, String
-  
-  has_many :profiles
-end
-
 describe "check associations" do
   it "should save associations properly" do
     @profile = Profile.new

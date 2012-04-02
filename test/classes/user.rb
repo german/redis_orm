@@ -10,13 +10,16 @@ class User < RedisOrm::Base
   property :modified_at, Time
   property :gender, RedisOrm::Boolean, :default => true
 
+  index :age
   index :name 
   index :first_name
   index :last_name
   index [:first_name, :last_name]
 
+  has_one :profile
   has_many :comments
   has_many :users, :as => :friends
+  has_one :photo, :dependent => :destroy
 
   after_create :store_in_rating
   after_destroy :after_destroy_callback
