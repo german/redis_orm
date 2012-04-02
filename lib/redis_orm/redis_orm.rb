@@ -75,7 +75,7 @@ module RedisOrm
         send(:define_method, property_name) do
           value = instance_variable_get(:"@#{property_name}")
 
-          return value if value.nil? # we must return nil here so :default option will work when saving, otherwise it'll return "" or 0 or 0.0
+          return nil if value.nil? # we must return nil here so :default option will work when saving, otherwise it'll return "" or 0 or 0.0
 
           if Time == class_name
             value = begin
@@ -601,9 +601,29 @@ module RedisOrm
         
         if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
+
+          # cast prop_value to proper class if they are not in it
+          # for example 'property :wage, Float, :sortable => true, :default => 20_000' turn 20_000 to 20_000.0
+          if prop[:class] != prop_value.class.to_s
+            prop_value = case prop[:class]
+                         when 'Time'
+                           begin
+                             value.to_s.to_time(:local)
+                           rescue ArgumentError => e
+                             nil
+                           end
+                         when 'Integer'
+                           prop_value.to_i
+                         when 'Float'
+                           prop_value.to_f
+                         when 'RedisOrm::Boolean'
+                           (prop_value == "false" || prop_value == false) ? false : true
+                         end
+          end
+
           # set instance variable in order to properly save indexes here
-          self.instance_variable_set(:"@#{prop[:name]}", prop[:options][:default])
-          instance_variable_set :"@#{prop[:name]}_changes", [prop[:options][:default]]
+          self.instance_variable_set(:"@#{prop[:name]}", prop_value)
+          instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
         end
 
         $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)

@@ -159,4 +159,15 @@ describe "check basic functionality" do
     t.created_at.day.should == Time.now.day
     t.modified_at.day.should == Time.now.day
   end
+
+  it "should properly transform :default values to right classes (if :default values are wrong) so when comparing them to other/stored instances they'll be the same" do
+    # SortableUser class has 3 properties with wrong classes of :default value
+    u = SortableUser.new :name => "Alan"
+    u.save
+    
+    su = SortableUser.first
+    su.test_type_cast.should == false
+    su.wage.should == 20_000.0
+    su.age.should == 26
+  end
 end
