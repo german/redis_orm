@@ -1,6 +1,9 @@
 class Comment < RedisOrm::Base
   property :body, String
   property :text, String
+  property :moderated, RedisOrm::Boolean, :default => false
+
+  index :moderated
 
   belongs_to :user
   belongs_to :article

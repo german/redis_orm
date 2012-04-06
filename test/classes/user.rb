@@ -9,7 +9,11 @@ class User < RedisOrm::Base
   property :created_at, Time
   property :modified_at, Time
   property :gender, RedisOrm::Boolean, :default => true
-
+  property :moderator, RedisOrm::Boolean, :default => false
+  property :moderated_area, String, :default => "messages"
+  
+  index :moderator
+  index [:moderator, :moderated_area]
   index :age
   index :name 
   index :first_name

@@ -554,7 +554,9 @@ module RedisOrm
               if !@@associations[model_name].empty?
                 @@associations[model_name].each do |assoc|
                   if :belongs_to == assoc[:type]
-                    if !self.send(assoc[:foreign_model]).nil?
+                    # if association has :as option use it, otherwise use standard :foreign_model
+                    foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
+                    if !self.send(foreign_model_name).nil?
                       if index[:name].is_a?(Array)
                         keys_to_delete = if index[:name].index(prop) == 0
                           $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"

@@ -1,32 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class Article < RedisOrm::Base
-  property :title, String
-  has_many :comments
-end
-
-class Comment < RedisOrm::Base
-  property :body, String
-  
-  property :moderated, RedisOrm::Boolean, :default => false
-  index :moderated
-  
-  belongs_to :article
-end
-
-class User < RedisOrm::Base
-  property :name, String
-  index :name
-  
-  property :moderator, RedisOrm::Boolean, :default => false
-  property :moderated_area, String, :default => "messages"
-  
-  index :moderator
-  index [:moderator, :moderated_area]
-  
-  has_many :users, :as => :friends
-end
-
 describe "check indices for associations" do
   before(:each) do
     @article = Article.new :title => "DHH drops OpenID on 37signals"

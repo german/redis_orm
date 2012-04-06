@@ -1,13 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class Photo < RedisOrm::Base
-  property :image, String
-  
-  validates_presence_of :image
-  validates_length_of :image, :in => 7..32
-  validates_format_of :image, :with => /\w*\.(gif|jpe?g|png)/
-end
-
 describe "check associations" do
   it "should validate presence if image in photo" do
     p = Photo.new

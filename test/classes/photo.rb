@@ -14,4 +14,8 @@ class Photo < RedisOrm::Base
   belongs_to :album
   belongs_to :user
   belongs_to :category
+
+  validates_presence_of :image
+  validates_length_of :image, :in => 7..32
+  validates_format_of :image, :with => /\w*\.(gif|jpe?g|png)/
 end

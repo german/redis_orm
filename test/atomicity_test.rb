@@ -1,12 +1,5 @@
 require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
 
-class Article < RedisOrm::Base
-  use_uuid_as_id
-  
-  property :title, String
-  property :karma, Integer
-end
-
 describe "check atomicity" do
   it "should properly increment property's value" do
     article = Article.new :title => "Simple test atomicity with multiple threads", :karma => 1
