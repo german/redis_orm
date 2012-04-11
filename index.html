@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=640" />
+
+    <link rel="stylesheet" href="stylesheets/core.css" media="screen"/>
+    <link rel="stylesheet" href="stylesheets/mobile.css" media="handheld, only screen and (max-device-width:640px)"/>
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css"/>
+
+    <script type="text/javascript" src="javascripts/modernizr.js"></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script type="text/javascript" src="javascripts/headsmart.min.js"></script>
+    <script type="text/javascript">
+      $(document).ready(function () {
+        $('#main_content').headsmart()
+      })
+    </script>
+    <title>Redis orm by german</title>
+  </head>
+
+  <body>
+    <a id="forkme_banner" href="https://github.com/german/redis_orm">Fork Me on GitHub</a>
+    <div class="shell">
+
+      <header>
+        <span class="ribbon-outer">
+          <span class="ribbon-inner">
+            <h1>Redis orm</h1>
+            <h2>ORM for Redis</h2>
+          </span>
+          <span class="left-tail"></span>
+          <span class="right-tail"></span>
+        </span>
+      </header>
+
+      <section id="downloads">
+        <span class="inner">
+          <a href="https://github.com/german/redis_orm/zipball/master" class="zip"><em>download</em> .ZIP</a><a href="https://github.com/german/redis_orm/tarball/master" class="tgz"><em>download</em> .TGZ</a>
+        </span>
+      </section>
+
+      <span class="banner-fix"></span>
+
+      <section id="main_content">
+        <p>RedisOrm supposed to be <em>almost</em> drop-in replacement of ActiveRecord 2.x. It's based on the <a href="http://redis.io">Redis</a> - advanced key-value store and is work in progress.</p>
+
+<p>Here's the standard model definition:</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:first_name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">property</span> <span class="ss">:last_name</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">timestamps</span>
+
+  <span class="c1"># OR</span>
+  <span class="c1"># property :created_at, Time</span>
+  <span class="c1"># property :modified_at, Time</span>
+
+  <span class="n">index</span> <span class="ss">:last_name</span>
+  <span class="n">index</span> <span class="o">[</span><span class="ss">:first_name</span><span class="p">,</span> <span class="ss">:last_name</span><span class="o">]</span>
+
+  <span class="n">has_many</span> <span class="ss">:photos</span>
+  <span class="n">has_one</span> <span class="ss">:profile</span>
+
+  <span class="n">after_create</span> <span class="ss">:create_mailboxes</span>
+
+  <span class="k">def</span> <span class="nf">create_mailboxes</span>
+    <span class="c1"># ...</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<h2>Installing redis_orm</h2>
+
+<p>stable release:</p>
+
+<div class="highlight">
+<pre>gem install redis_orm
+</pre>
+</div>
+
+
+<p>or edge version:</p>
+
+<div class="highlight">
+<pre>git clone git://github.com/german/redis_orm.git
+<span class="nb">cd </span>redis_orm
+bundle install
+</pre>
+</div>
+
+
+<p>To run the tests you should have redis installed already. Please check <a href="http://redis.io/download">Redis download/installation page</a>.</p>
+
+<div class="highlight">
+<pre>rake <span class="nb">test</span>
+</pre>
+</div>
+
+
+<h2>Setting up a connection to the redis server</h2>
+
+<p>If you are using Rails you should initialize redis and set up global $redis variable in <em>config/initializers/redis.rb</em> file:</p>
+
+<div class="highlight">
+<pre><span class="nb">require</span> <span class="s1">'redis'</span>
+<span class="vg">$redis</span> <span class="o">=</span> <span class="no">Redis</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="ss">:host</span> <span class="o">=&gt;</span> <span class="s1">'localhost'</span><span class="p">,</span> <span class="ss">:port</span> <span class="o">=&gt;</span> <span class="mi">6379</span><span class="p">)</span>
+</pre>
+</div>
+
+
+<h2>Defining a model and specifing properties</h2>
+
+<p>To specify properties for your model you should use the following syntax:</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:first_name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">property</span> <span class="ss">:last_name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">property</span> <span class="ss">:created_at</span><span class="p">,</span> <span class="no">Time</span>
+  <span class="n">property</span> <span class="ss">:modified_at</span><span class="p">,</span> <span class="no">Time</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<p>Supported property types:</p>
+
+<ul>
+<li><p><strong>Integer</strong></p></li>
+<li><p><strong>String</strong></p></li>
+<li><p><strong>Float</strong></p></li>
+<li><p><strong>RedisOrm::Boolean</strong>
+there is no Boolean class in Ruby so it's a special class to store TrueClass or FalseClass objects</p></li>
+<li><p><strong>Time</strong></p></li>
+</ul><p>Following options are available in property declaration:</p>
+
+<ul>
+<li>
+<p><strong>:default</strong></p>
+
+<p>The default value of the attribute when it's getting saved w/o any.</p>
+</li>
+<li>
+<p><strong>:sortable</strong></p>
+
+<p>if <em>true</em> is specified then you could sort records by this property later</p>
+</li>
+</ul><p><em>Note</em> that when you're using :sortable option redis_orm maintains one additional list per attribute. Also note that the #create method could be 3 times slower in some cases (this will be improved in future releases), while the #find performance is basically the same (see the "benchmarks/sortable_benchmark.rb").</p>
+
+<h2>Searching records by the value</h2>
+
+<p>Usually it's done via declaring an index and using <em>:conditions</em> hash or dynamic finders. For example:</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:name</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">index</span> <span class="ss">:name</span>
+<span class="k">end</span>
+
+<span class="no">User</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"germaninthetown"</span>
+
+<span class="c1"># via dynamic finders:</span>
+<span class="no">User</span><span class="o">.</span><span class="n">find_by_name</span> <span class="s2">"germaninthetown"</span> <span class="c1"># =&gt; found 1 record</span>
+<span class="no">User</span><span class="o">.</span><span class="n">find_all_by_name</span> <span class="s2">"germaninthetown"</span> <span class="c1"># =&gt; array with 1 record</span>
+
+<span class="c1"># via *:conditions* hash:</span>
+<span class="no">User</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:all</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"germaninthetown"</span><span class="p">})</span> <span class="c1"># =&gt; array with 1 record</span>
+<span class="no">User</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"germaninthetown"</span><span class="p">})</span> <span class="c1"># =&gt; array with 1 record</span>
+</pre>
+</div>
+
+
+<p>Dynamic finders work mostly the way they work in ActiveRecord. The only difference is if you didn't specified index or compound index on the attributes you are searching on the exception will be raised. So you should make an initial analysis of model and determine properties that should be searchable.</p>
+
+<h2>Options for #find/#all</h2>
+
+<p>To extract all or part of the associated records you could use 4 options:</p>
+
+<ul>
+<li><p>:limit</p></li>
+<li><p>:offset</p></li>
+<li><p>:order</p></li>
+</ul><p>Either :desc or :asc (default), since records are stored with <em>Time.now.to_f</em> scores, by default they could be fetched only in that (or reversed) order. To order by different property you should:</p>
+
+<ol>
+<li><p>specify <em>:sortable =&gt; true</em> as option in property declaration</p></li>
+<li><p>specify the property by which you wish to order <em>:order =&gt; [:name, :desc]</em> or <em>:order =&gt; [:name]</em> (:asc order is default)</p></li>
+</ol><ul>
+<li>:conditions</li>
+</ul><p>Hash where keys must be equal to the existing property name (there must be index for this property too).</p>
+
+<div class="highlight">
+<pre><span class="c1"># for example we associate 2 photos with the album</span>
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span> <span class="o">&lt;&lt;</span> <span class="no">Photo</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="ss">:image_type</span> <span class="o">=&gt;</span> <span class="s2">"image/png"</span><span class="p">,</span> <span class="ss">:image</span> <span class="o">=&gt;</span> <span class="s2">"boobs.png"</span><span class="p">)</span>
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span> <span class="o">&lt;&lt;</span> <span class="no">Photo</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="ss">:image_type</span> <span class="o">=&gt;</span> <span class="s2">"image/jpeg"</span><span class="p">,</span> <span class="ss">:image</span> <span class="o">=&gt;</span> <span class="s2">"facepalm.jpg"</span><span class="p">)</span>
+
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:limit</span> <span class="o">=&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="ss">:offset</span> <span class="o">=&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="c1"># =&gt; []</span>
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:limit</span> <span class="o">=&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="ss">:offset</span> <span class="o">=&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">size</span> <span class="c1"># =&gt; 1</span>
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:limit</span> <span class="o">=&gt;</span> <span class="mi">2</span><span class="p">,</span> <span class="ss">:offset</span> <span class="o">=&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="c1"># [...]</span>
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:limit</span> <span class="o">=&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="ss">:offset</span> <span class="o">=&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:image_type</span> <span class="o">=&gt;</span> <span class="s2">"image/png"</span><span class="p">})</span>
+<span class="vi">@album</span><span class="o">.</span><span class="n">photos</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:all</span><span class="p">,</span> <span class="ss">:order</span> <span class="o">=&gt;</span> <span class="s2">"asc"</span><span class="p">)</span>
+
+<span class="no">Photo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:first</span><span class="p">,</span> <span class="ss">:order</span> <span class="o">=&gt;</span> <span class="s2">"desc"</span><span class="p">)</span>
+<span class="no">Photo</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:order</span> <span class="o">=&gt;</span> <span class="s2">"asc"</span><span class="p">,</span> <span class="ss">:limit</span> <span class="o">=&gt;</span> <span class="mi">5</span><span class="p">)</span>
+<span class="no">Photo</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:order</span> <span class="o">=&gt;</span> <span class="s2">"desc"</span><span class="p">,</span> <span class="ss">:limit</span> <span class="o">=&gt;</span> <span class="mi">10</span><span class="p">,</span> <span class="ss">:offset</span> <span class="o">=&gt;</span> <span class="mi">50</span><span class="p">)</span>
+<span class="no">Photo</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="ss">:order</span> <span class="o">=&gt;</span> <span class="s2">"desc"</span><span class="p">,</span> <span class="ss">:offset</span> <span class="o">=&gt;</span> <span class="mi">10</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:image_type</span> <span class="o">=&gt;</span> <span class="s2">"image/jpeg"</span><span class="p">})</span>
+
+<span class="no">Photo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:all</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:image</span> <span class="o">=&gt;</span> <span class="s2">"facepalm.jpg"</span><span class="p">})</span> <span class="c1"># =&gt; [...]</span>
+<span class="no">Photo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:first</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:image</span> <span class="o">=&gt;</span> <span class="s2">"boobs.png"</span><span class="p">})</span> <span class="c1"># =&gt; [...]</span>
+</pre>
+</div>
+
+
+<h2>Using UUID instead of numeric id</h2>
+
+<p>You could use universally unique identifiers (UUIDs) instead of a monotone increasing sequence of numbers as id/primary key for your models. </p>
+
+<p>Example of UUID: b57525b09a69012e8fbe001d61192f09. </p>
+
+<p>To enable UUIDs you should invoke <em>use_uuid_as_id</em> class method:</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">use_uuid_as_id</span>
+
+  <span class="n">property</span> <span class="ss">:name</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">property</span> <span class="ss">:created_at</span><span class="p">,</span> <span class="no">Time</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<p><a href="https://rubygems.org/gems/uuid">UUID</a> gem is installed as a dependency. </p>
+
+<p>An excerpt from <a href="https://github.com/assaf/uuid">https://github.com/assaf/uuid</a> :</p>
+
+<p>UUID (universally unique identifier) are guaranteed to be unique across time and space. </p>
+
+<p>A UUID is 128 bit long, and consists of a 60-bit time value, a 16-bit sequence number and a 48-bit node identifier. </p>
+
+<p>Note: when using a forking server (Unicorn, Resque, Pipemaster, etc) you don’t want your forked processes using the same sequence number. Make sure to increment the sequence number each time a worker forks.</p>
+
+<p>For example, in config/unicorn.rb:</p>
+
+<div class="highlight">
+<pre><span class="n">after_fork</span> <span class="k">do</span> <span class="o">|</span><span class="n">server</span><span class="p">,</span> <span class="n">worker</span><span class="o">|</span>
+  <span class="no">UUID</span><span class="o">.</span><span class="n">generator</span><span class="o">.</span><span class="n">next_sequence</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<h2>Indices</h2>
+
+<p>Indices are used in a different way then they are used in relational databases. In redis_orm they are used to find record by they value rather then to quick access them.</p>
+
+<p>You could add index to any attribute of the model (index also could be compound):</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:first_name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">property</span> <span class="ss">:last_name</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">index</span> <span class="ss">:first_name</span>
+  <span class="n">index</span> <span class="o">[</span><span class="ss">:first_name</span><span class="p">,</span> <span class="ss">:last_name</span><span class="o">]</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<p>With index defined for the property (or properties) the id of the saved object is stored in the sorted set with special name, so it could be found later by the value. For example with defined User model from the above code:</p>
+
+<div class="highlight">
+<pre><span class="n">user</span> <span class="o">=</span> <span class="no">User</span><span class="o">.</span><span class="n">new</span> <span class="ss">:first_name</span> <span class="o">=&gt;</span> <span class="s2">"Robert"</span><span class="p">,</span> <span class="ss">:last_name</span> <span class="o">=&gt;</span> <span class="s2">"Pirsig"</span>
+<span class="n">user</span><span class="o">.</span><span class="n">save</span>
+
+<span class="c1"># 2 redis keys are created "user:first_name:Robert" and "user:first_name:Robert:last_name:Pirsig" so we could search records like this:</span>
+
+<span class="no">User</span><span class="o">.</span><span class="n">find_by_first_name</span><span class="p">(</span><span class="s2">"Robert"</span><span class="p">)</span>                             <span class="c1"># =&gt; user</span>
+<span class="no">User</span><span class="o">.</span><span class="n">find_all_by_first_name</span><span class="p">(</span><span class="s2">"Robert"</span><span class="p">)</span>                         <span class="c1"># =&gt; [user]</span>
+<span class="no">User</span><span class="o">.</span><span class="n">find_by_first_name_and_last_name</span><span class="p">(</span><span class="s2">"Robert"</span><span class="p">,</span> <span class="s2">"Pirsig"</span><span class="p">)</span>     <span class="c1"># =&gt; user</span>
+<span class="no">User</span><span class="o">.</span><span class="n">find_all_by_first_name_and_last_name</span><span class="p">(</span><span class="s2">"Chris"</span><span class="p">,</span> <span class="s2">"Pirsig"</span><span class="p">)</span>  <span class="c1"># =&gt; []</span>
+</pre>
+</div>
+
+
+<p>Indices on associations are also created/deleted/updated when objects with has_many/belongs_to associations are created/deleted/updated (excerpt from association_indices_test.rb):</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">Article</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:title</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">has_many</span> <span class="ss">:comments</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Comment</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:body</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">property</span> <span class="ss">:moderated</span><span class="p">,</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Boolean</span><span class="p">,</span> <span class="ss">:default</span> <span class="o">=&gt;</span> <span class="kp">false</span>
+  <span class="n">index</span> <span class="ss">:moderated</span>
+  <span class="n">belongs_to</span> <span class="ss">:article</span>
+<span class="k">end</span>
+
+<span class="n">article</span> <span class="o">=</span> <span class="no">Article</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="s2">"DHH drops OpenID on 37signals"</span>
+<span class="n">comment1</span> <span class="o">=</span> <span class="no">Comment</span><span class="o">.</span><span class="n">create</span> <span class="ss">:body</span> <span class="o">=&gt;</span> <span class="s2">"test"</span>    
+<span class="n">comment2</span> <span class="o">=</span> <span class="no">Comment</span><span class="o">.</span><span class="n">create</span> <span class="ss">:body</span> <span class="o">=&gt;</span> <span class="s2">"test #2"</span><span class="p">,</span> <span class="ss">:moderated</span> <span class="o">=&gt;</span> <span class="kp">true</span>
+
+<span class="n">article</span><span class="o">.</span><span class="n">comments</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="n">comment1</span><span class="p">,</span> <span class="n">comment2</span><span class="o">]</span>
+
+<span class="c1"># here besides usual indices for each comment, 2 association indices are created so #find with *:conditions* on comments should work</span>
+
+<span class="n">article</span><span class="o">.</span><span class="n">comments</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:all</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:moderated</span> <span class="o">=&gt;</span> <span class="kp">true</span><span class="p">})</span>
+<span class="n">article</span><span class="o">.</span><span class="n">comments</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="ss">:all</span><span class="p">,</span> <span class="ss">:conditions</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="ss">:moderated</span> <span class="o">=&gt;</span> <span class="kp">false</span><span class="p">})</span>
+</pre>
+</div>
+
+
+<p>Index definition supports following options:</p>
+
+<ul>
+<li> <strong>:unique</strong> Boolean default: false</li>
+</ul><p>If true is specified then value is stored in ordinary key-value structure with index as the key, otherwise the values are added to sorted set with index as the key and <em>Time.now.to_f</em> as a score.</p>
+
+<ul>
+<li> <strong>:case_insensitive</strong> Boolean default: false</li>
+</ul><p>If true is specified then property values are saved downcased (and then are transformed to downcase form when searching). Works for compound indices too.</p>
+
+<h2>Associations</h2>
+
+<p>RedisOrm provides 3 association types:</p>
+
+<ul>
+<li><p>has_one</p></li>
+<li><p>has_many</p></li>
+<li><p>belongs_to</p></li>
+</ul><p>HABTM association could be emulated with 2 has_many declarations in related models.</p>
+
+<h3>has_many/belongs_to associations</h3>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">Article</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:title</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">has_many</span> <span class="ss">:comments</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Comment</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:body</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">belongs_to</span> <span class="ss">:article</span>
+<span class="k">end</span>
+
+<span class="n">article</span> <span class="o">=</span> <span class="no">Article</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="s2">"DHH drops OpenID support on 37signals"</span>
+<span class="n">comment1</span> <span class="o">=</span> <span class="no">Comment</span><span class="o">.</span><span class="n">create</span> <span class="ss">:body</span> <span class="o">=&gt;</span> <span class="s2">"test"</span>
+<span class="n">comment2</span> <span class="o">=</span> <span class="no">Comment</span><span class="o">.</span><span class="n">create</span> <span class="ss">:body</span> <span class="o">=&gt;</span> <span class="s2">"test #2"</span>
+
+<span class="n">article</span><span class="o">.</span><span class="n">comments</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="n">comment1</span><span class="p">,</span> <span class="n">comment2</span><span class="o">]</span>
+
+<span class="c1"># or rewrite associations</span>
+<span class="n">article</span><span class="o">.</span><span class="n">comments</span> <span class="o">=</span> <span class="o">[</span><span class="n">comment1</span><span class="p">,</span> <span class="n">comment2</span><span class="o">]</span>
+
+<span class="n">article</span><span class="o">.</span><span class="n">comments</span> <span class="c1"># =&gt; [comment1, comment2]</span>
+<span class="n">comment1</span><span class="o">.</span><span class="n">article</span> <span class="c1"># =&gt; article</span>
+<span class="n">comment2</span><span class="o">.</span><span class="n">article</span> <span class="c1"># =&gt; article</span>
+</pre>
+</div>
+
+
+<p>Backlinks are automatically created.</p>
+
+<h3>has_one/belongs_to associations</h3>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">has_one</span> <span class="ss">:profile</span>  
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Profile</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:age</span><span class="p">,</span> <span class="nb">Integer</span>
+
+  <span class="n">validates_presence_of</span> <span class="ss">:age</span>  
+  <span class="n">belongs_to</span> <span class="ss">:user</span>
+<span class="k">end</span>
+
+<span class="n">user</span> <span class="o">=</span> <span class="no">User</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"Haruki Murakami"</span>
+<span class="n">profile</span> <span class="o">=</span> <span class="no">Profile</span><span class="o">.</span><span class="n">create</span> <span class="ss">:age</span> <span class="o">=&gt;</span> <span class="mi">26</span>
+<span class="n">user</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
+
+<span class="n">user</span><span class="o">.</span><span class="n">profile</span> <span class="c1"># =&gt; profile</span>
+<span class="n">profile</span><span class="o">.</span><span class="n">user</span> <span class="c1"># =&gt; user</span>
+</pre>
+</div>
+
+
+<p>Backlink is automatically created.</p>
+
+<h3>has_many/has_many associations (HABTM)</h3>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">Article</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:title</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">has_many</span> <span class="ss">:categories</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Category</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">has_many</span> <span class="ss">:articles</span>
+<span class="k">end</span>
+
+<span class="n">article</span> <span class="o">=</span> <span class="no">Article</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="s2">"DHH drops OpenID support on 37signals"</span>
+
+<span class="n">cat1</span> <span class="o">=</span> <span class="no">Category</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"Nature"</span>
+<span class="n">cat2</span> <span class="o">=</span> <span class="no">Category</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"Art"</span>
+<span class="n">cat3</span> <span class="o">=</span> <span class="no">Category</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"Web"</span>
+
+<span class="n">article</span><span class="o">.</span><span class="n">categories</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="n">cat1</span><span class="p">,</span> <span class="n">cat2</span><span class="p">,</span> <span class="n">cat3</span><span class="o">]</span>
+
+<span class="n">article</span><span class="o">.</span><span class="n">categories</span> <span class="c1"># =&gt; [cat1, cat2, cat3]</span>
+<span class="n">cat1</span><span class="o">.</span><span class="n">articles</span> <span class="c1"># =&gt; [article]</span>
+<span class="n">cat2</span><span class="o">.</span><span class="n">articles</span> <span class="c1"># =&gt; [article]</span>
+<span class="n">cat3</span><span class="o">.</span><span class="n">articles</span> <span class="c1"># =&gt; [article]</span>
+</pre>
+</div>
+
+
+<p>Backlinks are automatically created.</p>
+
+<h3>Self-referencing association</h3>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:name</span><span class="p">,</span> <span class="nb">String</span>
+  <span class="n">index</span> <span class="ss">:name</span>
+  <span class="n">has_many</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">:as</span> <span class="o">=&gt;</span> <span class="ss">:friends</span>
+<span class="k">end</span>
+
+<span class="n">me</span> <span class="o">=</span> <span class="no">User</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"german"</span>
+<span class="n">friend1</span> <span class="o">=</span> <span class="no">User</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"friend1"</span>
+<span class="n">friend2</span> <span class="o">=</span> <span class="no">User</span><span class="o">.</span><span class="n">create</span> <span class="ss">:name</span> <span class="o">=&gt;</span> <span class="s2">"friend2"</span>
+
+<span class="n">me</span><span class="o">.</span><span class="n">friends</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="n">friend1</span><span class="p">,</span> <span class="n">friend2</span><span class="o">]</span>
+
+<span class="n">me</span><span class="o">.</span><span class="n">friends</span> <span class="c1"># =&gt; [friend1, friend2]</span>
+<span class="n">friend1</span><span class="o">.</span><span class="n">friends</span> <span class="c1"># =&gt; []</span>
+<span class="n">friend2</span><span class="o">.</span><span class="n">friends</span> <span class="c1"># =&gt; []</span>
+</pre>
+</div>
+
+
+<p>As an exception if <em>:as</em> option for the association is provided the backlinks aren't created.</p>
+
+<h3>Polymorphic associations</h3>
+
+<p>Polymorphic associations work the same way they do in ActiveRecord (2 keys are created to store type and id of the record)</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">CatalogItem</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:title</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">belongs_to</span> <span class="ss">:resource</span><span class="p">,</span> <span class="ss">:polymorphic</span> <span class="o">=&gt;</span> <span class="kp">true</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Book</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:price</span><span class="p">,</span> <span class="nb">Integer</span>
+  <span class="n">property</span> <span class="ss">:title</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">has_one</span> <span class="ss">:catalog_item</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Giftcard</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:price</span><span class="p">,</span> <span class="nb">Integer</span>
+  <span class="n">property</span> <span class="ss">:title</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">has_one</span> <span class="ss">:catalog_item</span>
+<span class="k">end</span>
+
+<span class="n">book</span> <span class="o">=</span> <span class="no">Book</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="s2">"Permutation City"</span><span class="p">,</span> <span class="ss">:author</span> <span class="o">=&gt;</span> <span class="s2">"Egan Greg"</span><span class="p">,</span> <span class="ss">:price</span> <span class="o">=&gt;</span> <span class="mi">1529</span>
+<span class="n">giftcard</span> <span class="o">=</span> <span class="no">Giftcard</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="s2">"Happy New Year!"</span>
+
+<span class="n">ci1</span> <span class="o">=</span> <span class="no">CatalogItem</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="n">giftcard</span><span class="o">.</span><span class="n">title</span>
+<span class="n">ci1</span><span class="o">.</span><span class="n">resource</span> <span class="o">=</span> <span class="n">giftcard</span>
+
+<span class="n">ci2</span> <span class="o">=</span> <span class="no">CatalogItem</span><span class="o">.</span><span class="n">create</span> <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="n">book</span><span class="o">.</span><span class="n">title</span>
+<span class="n">ci2</span><span class="o">.</span><span class="n">resource</span> <span class="o">=</span> <span class="n">book</span>
+</pre>
+</div>
+
+
+<p>All associations supports following options:</p>
+
+<ul>
+<li>
+<em>:as</em> </li>
+</ul><p>Symbol Association could be accessed by provided name</p>
+
+<ul>
+<li>
+<em>:dependent</em> </li>
+</ul><p>Symbol could be either :destroy or :nullify (default value)</p>
+
+<h3>Clearing/reseting associations</h3>
+
+<p>You could clear/reset associations by assigning appropriately nil/[] to it:</p>
+
+<div class="highlight">
+<pre><span class="c1"># has_many association</span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="vi">@comment1</span><span class="p">,</span> <span class="vi">@comment2</span><span class="o">]</span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span><span class="o">.</span><span class="n">count</span> <span class="c1"># =&gt; 2</span>
+<span class="vi">@comment1</span><span class="o">.</span><span class="n">article</span>       <span class="c1"># =&gt; @article</span>
+
+<span class="c1"># clear    </span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span> <span class="o">=</span> <span class="o">[]</span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span><span class="o">.</span><span class="n">count</span> <span class="c1"># =&gt; 0</span>
+<span class="vi">@comment1</span><span class="o">.</span><span class="n">article</span>       <span class="c1"># =&gt; nil</span>
+
+<span class="c1"># belongs_to (same for has_one)</span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="vi">@comment1</span><span class="p">,</span> <span class="vi">@comment2</span><span class="o">]</span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span><span class="o">.</span><span class="n">count</span> <span class="c1"># =&gt; 2</span>
+<span class="vi">@comment1</span><span class="o">.</span><span class="n">article</span>       <span class="c1"># =&gt; @article</span>
+
+<span class="c1"># clear</span>
+<span class="vi">@comment1</span><span class="o">.</span><span class="n">article</span> <span class="o">=</span> <span class="kp">nil</span>
+<span class="vi">@article</span><span class="o">.</span><span class="n">comments</span><span class="o">.</span><span class="n">count</span> <span class="c1"># =&gt; 1</span>
+<span class="vi">@comment1</span><span class="o">.</span><span class="n">article</span>       <span class="c1"># =&gt; nil</span>
+</pre>
+</div>
+
+
+<p>For more examples please check test/associations_test.rb and test/polymorphic_test.rb</p>
+
+<h2>Validation</h2>
+
+<p>RedisOrm includes ActiveModel::Validations. So all well-known validation callbacks are already in. An excerpt from test/validations_test.rb:</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">Photo</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:image</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">validates_presence_of</span> <span class="ss">:image</span>
+  <span class="n">validates_length_of</span> <span class="ss">:image</span><span class="p">,</span> <span class="ss">:in</span> <span class="o">=&gt;</span> <span class="mi">7</span><span class="o">.</span><span class="n">.</span><span class="mi">32</span>
+  <span class="n">validates_format_of</span> <span class="ss">:image</span><span class="p">,</span> <span class="ss">:with</span> <span class="o">=&gt;</span> <span class="sr">/\w*\.(gif|jpe?g|png)/</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<h2>Callbacks</h2>
+
+<p>RedisOrm provides 6 standard callbacks:</p>
+
+<div class="highlight">
+<pre><span class="n">after_save</span> <span class="ss">:callback</span>
+<span class="n">before_save</span> <span class="ss">:callback</span>
+<span class="n">after_create</span> <span class="ss">:callback</span>
+<span class="n">before_create</span> <span class="ss">:callback</span>
+<span class="n">after_destroy</span> <span class="ss">:callback</span>
+<span class="n">before_destroy</span> <span class="ss">:callback</span>
+</pre>
+</div>
+
+
+<p>They are implemented differently than in ActiveModel though work as expected:</p>
+
+<div class="highlight">
+<pre><span class="k">class</span> <span class="nc">Comment</span> <span class="o">&lt;</span> <span class="no">RedisOrm</span><span class="o">::</span><span class="no">Base</span>
+  <span class="n">property</span> <span class="ss">:text</span><span class="p">,</span> <span class="nb">String</span>
+
+  <span class="n">belongs_to</span> <span class="ss">:user</span>
+
+  <span class="n">before_save</span> <span class="ss">:trim_whitespaces</span>
+
+  <span class="k">def</span> <span class="nf">trim_whitespaces</span>
+    <span class="nb">self</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">self</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">strip</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<h2>Saving records</h2>
+
+<p>When saving object standard ActiveModel's #valid? method is invoked at first. Then appropriate callbacks are run. Then new Hash in Redis is created with keys/values equal to the properties/values of the saving object. </p>
+
+<p>The object's id is stored in "model_name:ids" sorted set with Time.now.to_f as a score. So records are ordered by created_at time by default. Then record's indices are created/updated.</p>
+
+<h2>Dirty</h2>
+
+<p>Redis_orm also provides dirty methods to check whether the property has changed and what are these changes. To check it you could use 2 methods: #property_changed? (returns true or false) and #property_changes (returns array with changed values).</p>
+
+<h2>File attachment management with paperclip and redis</h2>
+
+<p><a href="http://def-end.com/post/6669884103/file-attachment-management-with-paperclip-and-redis">3 simple steps</a> you should follow to manage your file attachments with redis and paperclip.</p>
+
+<h2>Tests</h2>
+
+<p>Though I'm a big fan of the Test::Unit all tests are based on RSpec. And the only reason I use RSpec is possibility to define <em>before(:all)</em> and <em>after(:all)</em> hooks. So I could spawn/kill redis-server's process (from test_helper.rb):</p>
+
+<div class="highlight">
+<pre><span class="no">RSpec</span><span class="o">.</span><span class="n">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
+  <span class="n">config</span><span class="o">.</span><span class="n">before</span><span class="p">(</span><span class="ss">:all</span><span class="p">)</span> <span class="k">do</span>
+    <span class="n">path_to_conf</span> <span class="o">=</span> <span class="no">File</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="no">File</span><span class="o">.</span><span class="n">expand_path</span><span class="p">(</span><span class="bp">__FILE__</span><span class="p">))</span> <span class="o">+</span> <span class="s2">"/redis.conf"</span>
+    <span class="vg">$redis_pid</span> <span class="o">=</span> <span class="n">spawn</span> <span class="s1">'redis-server '</span> <span class="o">+</span> <span class="n">path_to_conf</span><span class="p">,</span> <span class="ss">:out</span> <span class="o">=&gt;</span> <span class="s2">"/dev/null"</span>
+    <span class="nb">sleep</span><span class="p">(</span><span class="mi">0</span><span class="o">.</span><span class="mi">3</span><span class="p">)</span> <span class="c1"># must be some delay otherwise "Connection refused - Unable to connect to Redis"</span>
+    <span class="n">path_to_socket</span> <span class="o">=</span> <span class="no">File</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="no">File</span><span class="o">.</span><span class="n">expand_path</span><span class="p">(</span><span class="bp">__FILE__</span><span class="p">))</span> <span class="o">+</span> <span class="s2">"/../redis.sock"</span>
+    <span class="vg">$redis</span> <span class="o">=</span> <span class="no">Redis</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="ss">:host</span> <span class="o">=&gt;</span> <span class="s1">'localhost'</span><span class="p">,</span> <span class="ss">:path</span> <span class="o">=&gt;</span> <span class="n">path_to_socket</span><span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="n">config</span><span class="o">.</span><span class="n">before</span><span class="p">(</span><span class="ss">:each</span><span class="p">)</span> <span class="k">do</span>
+    <span class="vg">$redis</span><span class="o">.</span><span class="n">flushall</span> <span class="k">if</span> <span class="vg">$redis</span>
+  <span class="k">end</span>
+
+  <span class="n">config</span><span class="o">.</span><span class="n">after</span><span class="p">(</span><span class="ss">:each</span><span class="p">)</span> <span class="k">do</span>
+   <span class="vg">$redis</span><span class="o">.</span><span class="n">flushall</span> <span class="k">if</span> <span class="vg">$redis</span>
+  <span class="k">end</span>
+
+  <span class="n">config</span><span class="o">.</span><span class="n">after</span><span class="p">(</span><span class="ss">:all</span><span class="p">)</span> <span class="k">do</span>
+    <span class="no">Process</span><span class="o">.</span><span class="n">kill</span> <span class="mi">9</span><span class="p">,</span> <span class="vg">$redis_pid</span><span class="o">.</span><span class="n">to_i</span> <span class="k">if</span> <span class="vg">$redis_pid</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</pre>
+</div>
+
+
+<p>To run all tests just invoke <em>rake test</em></p>
+
+<p>Copyright © 2011 Dmitrii Samoilov, released under the MIT license</p>
+
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:</p>
+
+<p>The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.</p>
+
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.</p>
+      </section>
+
+      <footer>
+        <span class="ribbon-outer">
+          <span class="ribbon-inner">
+            <p>this project by <a href="https://github.com/german">german</a> can be found on <a href="https://github.com/german/redis_orm">GitHub</a></p>
+          </span>
+          <span class="left-tail"></span>
+          <span class="right-tail"></span>
+        </span>
+        <p>Generated with <a href="http://pages.github.com">GitHub Pages</a> using Merlot</p>
+        <span class="octocat"></span>
+      </footer>
+
+    </div>
+
+    
+  </body>
+</html>
