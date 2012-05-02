@@ -203,11 +203,22 @@ module RedisOrm
 
         prepared_index = if !options[:conditions].blank? && options[:conditions].is_a?(Hash)
           properties = options[:conditions].collect{|key, value| key}
+          
+          # if some condition includes object => get only the id of this object
+          conds = options[:conditions].inject({}) do |sum, item|
+            key, value = item
+            if value.respond_to?(:model_name)
+              sum.merge!({key => value.id})
+            else
+              sum.merge!({key => value})
+            end
+          end
+
           index = find_indices(properties, :first => true)
           
           raise NotIndexFound if !index
 
-          construct_prepared_index(index, options[:conditions])
+          construct_prepared_index(index, conds)
         else
           if options[:order] && options[:order].is_a?(Array)
             model_name
@@ -438,10 +449,15 @@ module RedisOrm
           instance_variable_set :"@#{prop[:name]}_changes", []
         end
       end
- 
+
+      # get all names of properties to assign only those attributes from attributes hash whose key are in prop_names 
+      # we're not using *self.respond_to?("#{key}=".to_sym)* since *belongs_to* and other assocs could create their own methods 
+      # with *key=* name, that in turn will mess up indices
+      prop_names = @@properties[model_name].collect{|m| m[:name]}
+      
       if attributes.is_a?(Hash) && !attributes.empty?        
         attributes.each do |key, value|
-          self.send("#{key}=".to_sym, value) if self.respond_to?("#{key}=".to_sym)
+          self.send("#{key}=".to_sym, value) if prop_names.include?(key.to_sym)
         end
       end
       self
@@ -665,9 +681,9 @@ module RedisOrm
         end
       end
 
-      # save new indices in order to sort by finders
+      # save new indices (not *reference* onces (for example not these *belongs_to :note, :index => true*)) in order to sort by finders
       # city:name:Chicago => 1
-      @@indices[model_name].each do |index|
+      @@indices[model_name].reject{|index| index[:options][:reference]}.each do |index|
         prepared_index = construct_prepared_index(index) # instance method not class one!
 
         if index[:options][:unique]

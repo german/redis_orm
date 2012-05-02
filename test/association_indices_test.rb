@@ -115,4 +115,40 @@ describe "check indices for associations" do
     me.friends.find(:all, :conditions => {:moderated_area => "all", :moderator => true}).size.should == 1
     me.friends.find(:all, :conditions => {:moderated_area => "all", :moderator => true})[0].id.should == friend2.id
   end
+  
+  # TODO check that index assoc shouldn't be created while no assoc_record is provided
+
+  it "should return first model if it exists, when conditions contain associated object" do
+    user = User.create :name => "Dmitrii Samoilov", :age => 99, :wage => 35_000, :first_name => "Dmitrii", :last_name => "Samoilov"
+    note = Note.create :body => "a test to test"
+    note2 = Note.create :body => "aero"
+    
+    note.owner = user
+    
+    User.count.should == 1
+    Note.count.should == 2
+    $redis.zcard("note:owner:1").should == 1    
+    note.owner.should == user
+    Note.find(:all, :conditions => {:owner => user}).should == [note]
+    Note.find(:first, :conditions => {:owner => user}).should == note
+    
+    note.owner = nil
+    Note.find(:all, :conditions => {:owner => user}).should == []
+    Note.find(:first, :conditions => {:owner => user}).should == nil
+    $redis.zcard("note:owner:1").should == 0
+  end
+
+  it "should return first model if it exists when conditions contain associated object (belongs_to assoc established when creating object)" do
+    user = User.create :name => "Dmitrii Samoilov", :age => 99, :wage => 35_000, :first_name => "Dmitrii", :last_name => "Samoilov"
+    note = Note.create :body => "a test to test", :owner => user
+    Note.create :body => "aero" # just test what would *find* return if 2 exemplars of Note are created
+    
+    User.count.should == 1
+    Note.count.should == 2
+
+    note.owner.should == user
+    
+    Note.find(:all, :conditions => {:owner => user}).should == [note]
+    Note.find(:first, :conditions => {:owner => user}).should == note
+  end
 end
