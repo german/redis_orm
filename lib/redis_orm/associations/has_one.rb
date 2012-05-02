@@ -15,6 +15,10 @@ module RedisOrm
           foreign_model.to_sym
         end
 
+        if options[:index]
+          class_variable_get(:"@@indices")[model_name] << {:name => foreign_model_name, :options => {:reference => true}}
+        end
+        
         define_method foreign_model_name do
           foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
         end     
@@ -31,6 +35,34 @@ module RedisOrm
             $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
           else
             raise TypeMismatchError
+          end
+          
+          # handle indices for references
+          self.get_indices.select{|index| index[:options][:reference]}.each do |index|
+            # delete old reference that points to the old associated record
+            if !old_assoc.nil?
+              prepared_index = [self.model_name, index[:name], old_assoc.id].join(':')
+              prepared_index.downcase! if index[:options][:case_insensitive]
+
+              if index[:options][:unique]
+                $redis.del(prepared_index, id)
+              else
+                $redis.zrem(prepared_index, id)
+              end
+            end
+            
+            # if new associated record is nil then skip to next index (since old associated record was already unreferenced)
+            next if assoc_with_record.nil?
+            
+            prepared_index = [self.model_name, index[:name], assoc_with_record.id].join(':')
+
+            prepared_index.downcase! if index[:options][:case_insensitive]
+
+            if index[:options][:unique]
+              $redis.set(prepared_index, id)
+            else
+              $redis.zadd(prepared_index, Time.now.to_f, id)
+            end
           end
 
           if !options[:as]

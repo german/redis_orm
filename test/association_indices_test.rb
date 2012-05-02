@@ -151,4 +151,18 @@ describe "check indices for associations" do
     Note.find(:all, :conditions => {:owner => user}).should == [note]
     Note.find(:first, :conditions => {:owner => user}).should == note
   end
+  
+  it "should return first model if it exists when conditions contain associated object (has_one assoc established when creating object)" do
+    profile = Profile.create :title => "a test to test", :name => "german"
+    user = User.create :name => "Dmitrii Samoilov", :age => 99, :wage => 35_000, :first_name => "Dmitrii", :last_name => "Samoilov", :profile => profile
+    User.create :name => "Warren Buffet", :age => 399, :wage => 12_235_000, :first_name => "Warren", :last_name => "Buffet"
+    
+    User.count.should == 2
+    Profile.count.should == 1
+
+    profile.user.should == user
+    
+    User.find(:all, :conditions => {:profile => profile}).should == [user]
+    User.find(:first, :conditions => {:profile => profile}).should == user
+  end
 end

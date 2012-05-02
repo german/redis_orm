@@ -20,11 +20,12 @@ class User < RedisOrm::Base
   index :last_name
   index [:first_name, :last_name]
 
-  has_one :profile
+  has_one :profile, :index => true
   has_many :comments
   has_many :users, :as => :friends
   has_one :photo, :dependent => :destroy
-
+  has_many :notes
+  
   after_create :store_in_rating
   after_destroy :after_destroy_callback
 
