@@ -1,3 +1,10 @@
+v0.6.2 [23-05-2011]
+* adds an ability to specify/create indices on *has_one* and *belongs_to* associations
+* fixed error with updating indices in *belongs_to* association with :as option 
+* tests refactoring, now all tests are run with Rake::TestTask 
+* moved all classes and modules from test cases to special folders (test/classes, test/modules)
+* fixed bug: :default values should be properly transformed to the right classes (if :default values are wrong) so when comparing them to other/stored instances they'll be the same
+
 v0.6.1 [05-12-2011]
 * rewritten sortable functionality for attributes which values are strings
 * added Gemfile to the project, improved tests
