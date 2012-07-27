@@ -96,6 +96,25 @@ Following options are available in property declaration:
 
 *Note* that when you're using :sortable option redis_orm maintains one additional list per attribute. Also note that the #create method could be 3 times slower in some cases (this will be improved in future releases), while the #find performance is basically the same (see the "benchmarks/sortable_benchmark.rb").
 
+## Expiring record after certain period of time
+
+You could expire record stored in Redis by specifying TTL in seconds invoking *expire* method of the class like this:
+
+```ruby
+class PhantomUser < RedisOrm::Base
+  property :name, String
+  property :persist, RedisOrm::Boolean, :default => true
+
+  expire 15.minutes.from_now
+end
+```
+
+Also you could specify a condition when *expire* would be set on record's key:
+
+```ruby
+  expire 15.minutes.from_now, :if => Proc.new {|r| !r.persist?}
+```
+
 ## Searching records by the value
 
 Usually it's done via declaring an index and using *:conditions* hash or dynamic finders. For example:
