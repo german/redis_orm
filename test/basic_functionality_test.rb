@@ -24,6 +24,7 @@ describe "check basic functionality" do
     user.should be
 
     user.name.should == "german"
+    user.__redis_record_key.should == "user:1"
 
     User.count.should == 1
     User.first.name.should == "german"

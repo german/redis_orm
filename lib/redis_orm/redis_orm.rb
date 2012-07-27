@@ -5,6 +5,14 @@ require 'active_support/inflector/transliterate'
 require 'active_support/inflector/methods'
 require 'active_support/inflections'
 require 'active_support/core_ext/string/inflections'
+
+require 'active_support/core_ext/time/acts_like'
+require 'active_support/core_ext/time/calculations'
+require 'active_support/core_ext/time/conversions'
+require 'active_support/core_ext/time/marshal'
+require 'active_support/core_ext/time/zones'
+
+require 'active_support/core_ext/numeric'
 require 'active_support/core_ext/time/calculations' # local_time for to_time(:local)
 require 'active_support/core_ext/string/conversions' # to_time
 
@@ -47,7 +55,8 @@ module RedisOrm
     @@callbacks = Hash.new{|h,k| h[k] = {}}
     @@use_uuid_as_id = {}
     @@descendants = []
-    
+    @@expire = Hash.new{|h,k| h[k] = {}}
+        
     class << self
 
       def inherited(from)
@@ -127,6 +136,10 @@ module RedisOrm
         end
       end
       
+      def expire(seconds, options = {})
+        @@expire[model_name] = {:seconds => seconds, :options => options}
+      end
+
       def use_uuid_as_id
         @@use_uuid_as_id[model_name] = true
         @@uuid = UUID.new
@@ -422,7 +435,11 @@ module RedisOrm
     def to_a
       [self]
     end
-    
+ 
+    def __redis_record_key
+      "#{model_name}:#{id}"
+    end
+   
     # is called from RedisOrm::Associations::HasMany to save backlinks to saved records
     def get_associations
       @@associations[self.model_name]
@@ -616,7 +633,7 @@ module RedisOrm
 
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
-        
+
         if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
 
@@ -644,7 +661,18 @@ module RedisOrm
           instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
         end
 
-        $redis.hset("#{model_name}:#{id}", prop[:name].to_s, prop_value)
+        $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
+
+        # if class method *expire* was invoked and number of seconds was specified then set expiry date on the HSET record key
+        if @@expire[model_name][:seconds]
+          set_expire = true
+
+          if @@expire[model_name][:options][:if] && @@expire[model_name][:options][:if].class == Proc
+            set_expire = @@expire[model_name][:options][:if][self]  # invoking specified *:if* Proc with current record as *self* 
+          end
+
+          $redis.expire(__redis_record_key, @@expire[model_name][:seconds].to_i) if set_expire
+        end
 
         # reducing @#{prop[:name]}_changes array to the last value
         prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
