@@ -380,6 +380,8 @@ module RedisOrm
             obj.send("#{k}=", v)
           end
         end
+        
+        $redis.expire(obj.__redis_record_key, options[:expire_in].to_i) if !options[:expire_in].blank?
 
         obj
       end      
@@ -670,7 +672,7 @@ module RedisOrm
           if @@expire[model_name][:options][:if] && @@expire[model_name][:options][:if].class == Proc
             set_expire = @@expire[model_name][:options][:if][self]  # invoking specified *:if* Proc with current record as *self* 
           end
-
+          
           $redis.expire(__redis_record_key, @@expire[model_name][:seconds].to_i) if set_expire
         end
 

@@ -115,6 +115,12 @@ Also you could specify a condition when *expire* would be set on record's key:
   expire 15.minutes.from_now, :if => Proc.new {|r| !r.persist?}
 ```
 
+Also you could override class method *expire* by using *expire_in* key when saving object:
+
+```ruby
+ExpireUser.create :name => "Ghost record", :expire_in => 50.minutes.from_now
+```
+
 ## Searching records by the value
 
 Usually it's done via declaring an index and using *:conditions* hash or dynamic finders. For example:
