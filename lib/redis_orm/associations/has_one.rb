@@ -9,6 +9,8 @@ module RedisOrm
         class_associations = class_variable_get(:"@@associations")
         class_associations[model_name] << {:type => :has_one, :foreign_model => foreign_model, :options => options}
 
+        class_expire = class_variable_get(:"@@expire")[model_name]
+
         foreign_model_name = if options[:as]
           options[:as].to_sym
         else
@@ -29,10 +31,23 @@ module RedisOrm
           # we need to store this to clear old associations later
           old_assoc = self.send(foreign_model_name)
 
+          reference_key = "#{model_name}:#{id}:#{foreign_model_name}"
           if assoc_with_record.nil?
-            $redis.del("#{model_name}:#{id}:#{foreign_model_name}")
+            $redis.del(reference_key)
           elsif assoc_with_record.model_name == foreign_model.to_s
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
+            $redis.set(reference_key, assoc_with_record.id)
+
+            # if class method *expire* was invoked and number of seconds was specified then set expiry date on the HSET record key
+            if class_expire[:seconds]
+              set_expire = true
+
+              if class_expire[:options][:if] && class_expire[:options][:if].class == Proc
+                # *self* here refers to the instance of class which has_one association
+                set_expire = class_expire[:options][:if][self]  # invoking specified *:if* Proc with current record as *self* 
+              end
+
+              $redis.expire(reference_key, class_expire[:seconds].to_i) if set_expire
+            end
           else
             raise TypeMismatchError
           end
