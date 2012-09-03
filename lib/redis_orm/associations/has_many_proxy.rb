@@ -3,9 +3,9 @@ module RedisOrm
     class HasManyProxy
       include HasManyHelper
       
-      def initialize(reciever_model_name, reciever_id, foreign_models, options)
+      def initialize(receiver_model_name, reciever_id, foreign_models, options)
         @records = [] #records.to_a
-        @reciever_model_name = reciever_model_name
+        @reciever_model_name = receiver_model_name
         @reciever_id = reciever_id
         @foreign_models = foreign_models
         @options = options
@@ -31,8 +31,10 @@ module RedisOrm
       # user.avatars << Avatar.find(23) => user:1:avatars => [23]
       def <<(new_records)
         new_records.to_a.each do |record|
-          $redis.zadd(__key__, Time.now.to_f, record.id)          
-
+          $redis.zadd(__key__, Time.now.to_f, record.id)
+          receiver_instance = @reciever_model_name.camelize.constantize.find(@reciever_id)
+          receiver_instance.set_expire_on_reference_key(__key__)
+          
           record.get_indices.each do |index|
             save_index_for_associated_record(index, record, [@reciever_model_name, @reciever_id, record.model_name.pluralize]) # record.model_name.pluralize => @foreign_models
           end
@@ -50,8 +52,11 @@ module RedisOrm
                 @reciever_model_name.pluralize
               end
 
-              if !$redis.zrank("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", @reciever_id)
-                $redis.zadd("#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}", Time.now.to_f, @reciever_id)
+              reference_key = "#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}"
+              
+              if !$redis.zrank(reference_key, @reciever_id)
+                $redis.zadd(reference_key, Time.now.to_f, @reciever_id)
+                receiver_instance.set_expire_on_reference_key(reference_key)
               end
             # check whether *record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *record*'s side (in order not to provoke recursion)
             elsif has_one_assoc = record_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == @reciever_model_name.to_sym}
@@ -61,7 +66,9 @@ module RedisOrm
                 @reciever_model_name
               end
               if record.send(reciever_model_name).nil?
-                $redis.set("#{record.model_name}:#{record.id}:#{reciever_model_name}", @reciever_id)
+                key = "#{record.model_name}:#{record.id}:#{reciever_model_name}"
+                $redis.set(key, @reciever_id)
+                receiver_instance.set_expire_on_reference_key(key)
               end
             end
           end

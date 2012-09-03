@@ -442,6 +442,22 @@ module RedisOrm
       "#{model_name}:#{id}"
     end
    
+    def set_expire_on_reference_key(key)
+      class_expire = @@expire[model_name]
+
+      # if class method *expire* was invoked and number of seconds was specified then set expiry date on the HSET record key
+      if class_expire[:seconds]
+        set_expire = true
+
+        if class_expire[:options][:if] && class_expire[:options][:if].class == Proc
+          # *self* here refers to the instance of class which has_one association
+          set_expire = class_expire[:options][:if][self]  # invoking specified *:if* Proc with current record as *self* 
+        end
+
+        $redis.expire(key, class_expire[:seconds].to_i) if set_expire
+      end
+    end
+   
     # is called from RedisOrm::Associations::HasMany to save backlinks to saved records
     def get_associations
       @@associations[self.model_name]
@@ -665,17 +681,8 @@ module RedisOrm
 
         $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
 
-        # if class method *expire* was invoked and number of seconds was specified then set expiry date on the HSET record key
-        if @@expire[model_name][:seconds]
-          set_expire = true
-
-          if @@expire[model_name][:options][:if] && @@expire[model_name][:options][:if].class == Proc
-            set_expire = @@expire[model_name][:options][:if][self]  # invoking specified *:if* Proc with current record as *self* 
-          end
-          
-          $redis.expire(__redis_record_key, @@expire[model_name][:seconds].to_i) if set_expire
-        end
-
+        set_expire_on_reference_key(__redis_record_key)
+        
         # reducing @#{prop[:name]}_changes array to the last value
         prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
 

@@ -1,7 +1,7 @@
 module RedisOrm
   module Associations
     module HasManyHelper
-      private
+      private  
       def save_index_for_associated_record(index, record, inception)
         prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
           index[:name].inject(inception) do |sum, index_part|

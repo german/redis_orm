@@ -7,7 +7,7 @@ module RedisOrm
       def has_many(foreign_models, options = {})
         class_associations = class_variable_get(:"@@associations")
         class_associations[model_name] << {:type => :has_many, :foreign_models => foreign_models, :options => options}
-
+        
         foreign_models_name = options[:as] ? options[:as].to_sym : foreign_models.to_sym
 
         define_method foreign_models_name.to_sym do
@@ -41,8 +41,10 @@ module RedisOrm
 
           records.to_a.each do |record|
             # we use here *foreign_models_name* not *record.model_name.pluralize* because of the :as option
-            $redis.zadd("#{model_name}:#{id}:#{foreign_models_name}", Time.now.to_f, record.id)
-
+            key = "#{model_name}:#{id}:#{foreign_models_name}"
+            $redis.zadd(key, Time.now.to_f, record.id)
+            set_expire_on_reference_key(key)
+            
             record.get_indices.each do |index|
               save_index_for_associated_record(index, record, [model_name, id, record.model_name.pluralize]) # record.model_name.pluralize => foreign_models_name
             end
@@ -54,13 +56,16 @@ module RedisOrm
               assoc_foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : model_name.pluralize
               key = "#{record.model_name}:#{record.id}:#{assoc_foreign_models_name}"
               $redis.zadd(key, Time.now.to_f, id) if !$redis.zrank(key, id)
+              set_expire_on_reference_key(key)
             end
               
             # check whether *record* object has *has_one* declaration and it states *self.model_name*
             if assoc = record.get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym}
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : model_name
+              key = "#{record.model_name}:#{record.id}:#{foreign_model_name}"
               # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
-              $redis.set("#{record.model_name}:#{record.id}:#{foreign_model_name}", id)
+              $redis.set(key, id)              
+              set_expire_on_reference_key(key)
             end
           end
         end
