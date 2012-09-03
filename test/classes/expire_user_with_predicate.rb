@@ -4,7 +4,7 @@ class ExpireUserWithPredicate < RedisOrm::Base
 
   expire 10.minutes.from_now, :if => Proc.new {|r| !r.persist?}
 
-  has_many :article
+  has_many :articles
   has_one :profile
   
   def persist?

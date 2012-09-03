@@ -35,6 +35,11 @@ describe "expire record after specified time" do
     $redis.get("expire_user:1:profile").to_i.should == profile.id
     $redis.ttl("expire_user:1:profile").should be > 9.minutes.from_now.to_i
     $redis.ttl("expire_user:1:profile").should be < (10.minutes.from_now.to_i + 1)
+    
+    euser.articles = articles
+    $redis.zrange("expire_user:1:articles", 0, -1).should =~ articles.map{|a| a.id.to_s}
+    $redis.ttl("expire_user:1:articles").should be > 9.minutes.from_now.to_i
+    $redis.ttl("expire_user:1:articles").should be < (10.minutes.from_now.to_i + 1)
   end
   
   it "should also create expirable key when record has associated records (class with predicate expiry)" do
@@ -50,5 +55,10 @@ describe "expire record after specified time" do
     $redis.get("expire_user_with_predicate:1:profile").to_i.should == profile.id
     $redis.ttl("expire_user_with_predicate:1:profile").should be > 9.minutes.from_now.to_i
     $redis.ttl("expire_user_with_predicate:1:profile").should be < (10.minutes.from_now.to_i + 1)
+    
+    euser2.articles << articles
+    $redis.zrange("expire_user_with_predicate:1:articles", 0, -1).should =~ articles.map{|a| a.id.to_s}
+    $redis.ttl("expire_user_with_predicate:1:articles").should be > 9.minutes.from_now.to_i
+    $redis.ttl("expire_user_with_predicate:1:articles").should be < (10.minutes.from_now.to_i + 1)
   end
 end

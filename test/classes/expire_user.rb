@@ -3,6 +3,6 @@ class ExpireUser < RedisOrm::Base
 
   expire 10.minutes.from_now
   
-  has_many :article
+  has_many :articles
   has_one :profile
 end
