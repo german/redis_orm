@@ -12,6 +12,10 @@ module RedisOrm
         @fetched = false
       end
 
+      def receiver_instance
+        @receiver_instance ||= @reciever_model_name.camelize.constantize.find(@reciever_id)
+      end
+      
       def fetch
         @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore __key__, Time.now.to_f, 0)
         @fetched = true
@@ -32,7 +36,7 @@ module RedisOrm
       def <<(new_records)
         new_records.to_a.each do |record|
           $redis.zadd(__key__, Time.now.to_f, record.id)
-          receiver_instance = @reciever_model_name.camelize.constantize.find(@reciever_id)
+          
           receiver_instance.set_expire_on_reference_key(__key__)
           
           record.get_indices.each do |index|
