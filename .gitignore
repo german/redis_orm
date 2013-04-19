@@ -1,3 +1,4 @@
 dump.rdb
 redis.sock
 Gemfile.lock
+tmp/

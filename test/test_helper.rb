@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 require 'rspec'
 require 'rspec/autorun'
 require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
@@ -5,6 +7,7 @@ require File.dirname(File.expand_path(__FILE__)) + '/../lib/redis_orm.rb'
 Dir.glob(['test/classes/*.rb', 'test/modules/*.rb']).each do |klassfile|
   require File.dirname(File.expand_path(__FILE__)) + '/../' + klassfile
 end
+
 
 RSpec.configure do |config|  
   config.before(:all) do
