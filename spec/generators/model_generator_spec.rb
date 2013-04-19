@@ -22,7 +22,7 @@ describe RedisOrm::Generators::ModelGenerator do
 
     it { should exist }
     it "should define properties" do
-      should contain /property\s+title,\sString/
+      should contain /property\s+\:title,\sString/
     end
   end
 
