@@ -1,0 +1,5 @@
+class <%= class_name %> < RedisOrm::Base
+<% attributes.each do |attr| %>
+  property :<%= attr.name %>, <%= attr.type.to_s.camelcase %>
+<% end -%>
+end
