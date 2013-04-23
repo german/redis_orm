@@ -20,6 +20,6 @@ task :default => :test
 desc 'Test the redis_orm functionality'
 Rake::TestTask.new(:test) do |t|
   t.libs << 'lib'
-  t.test_files = FileList['test/*_test.rb']
+  t.test_files = FileList['test/**/*_test.rb', 'spec/**/*_spec.rb']
   t.verbose = true
 end

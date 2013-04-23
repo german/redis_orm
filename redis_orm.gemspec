@@ -28,6 +28,9 @@ Gem::Specification.new do |s|
       s.add_runtime_dependency(%q<redis>, [">= 2.2.0"])
       s.add_runtime_dependency(%q<uuid>, [">= 2.3.2"])
       s.add_development_dependency(%q<rspec>, [">= 2.5.0"])
+      s.add_development_dependency(%q<rspec-rails>, [">= 2.5.0"])
+      s.add_development_dependency(%q<ammeter>)
+      s.add_development_dependency(%q<rails>, [">= 3.2.13"])
     else
       s.add_dependency(%q<activesupport>, [">= 3.0.0"])
       s.add_dependency(%q<activemodel>, [">= 3.0.0"])
