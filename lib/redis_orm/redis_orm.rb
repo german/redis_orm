@@ -85,21 +85,18 @@ module RedisOrm
           value = instance_variable_get(:"@#{property_name}")
 
           return nil if value.nil? # we must return nil here so :default option will work when saving, otherwise it'll return "" or 0 or 0.0
-
-          if Time == class_name
-            value = begin
-              value.to_s.to_time(:local)
-            rescue ArgumentError => e
-              nil
-            end
+          if /DateTime|Time/ =~ class_name.to_s            
+            # we're using to_datetime here because to_time doesn't manage timezone correctly
+            value.to_s.to_datetime rescue nil
           elsif Integer == class_name
-            value = value.to_i
+            value.to_i
           elsif Float == class_name
-            value = value.to_f
+            value.to_f
           elsif RedisOrm::Boolean == class_name
-            value = ((value == "false" || value == false) ? false : true)
+            ((value == "false" || value == false) ? false : true)
+          else
+            value
           end
-          value
         end
     
         send(:define_method, "#{property_name}=".to_sym) do |value|
@@ -111,7 +108,6 @@ module RedisOrm
           else
             instance_variable_set(:"@#{property_name}_changes", [value])
           end
-
           instance_variable_set(:"@#{property_name}", value)
         end
   
@@ -264,7 +260,7 @@ module RedisOrm
           ids_key = prepared_index
           'asc'
         end
-
+        
         if order_by_property_is_string
           if direction.to_s == 'desc'
             ids_length = $redis.llen(ids_key)
@@ -485,14 +481,18 @@ module RedisOrm
         end
       end
 
+      # cast all attributes' keys to symbols
+      attributes = attributes.inject({}){|sum, el| sum.merge({el[0].to_sym => el[1]})} if attributes.is_a?(Hash)
+
       # get all names of properties to assign only those attributes from attributes hash whose key are in prop_names 
       # we're not using *self.respond_to?("#{key}=".to_sym)* since *belongs_to* and other assocs could create their own methods 
       # with *key=* name, that in turn will mess up indices
-      prop_names = @@properties[model_name].collect{|m| m[:name]}
-      
       if attributes.is_a?(Hash) && !attributes.empty?        
-        attributes.each do |key, value|
-          self.send("#{key}=".to_sym, value) if prop_names.include?(key.to_sym)
+        @@properties[model_name].each do |property|
+          if !(value = attributes[property[:name]]).nil? # check for nil because we want to pass falses too (and value could be 'false')
+            value = Marshal.load(value) if ["Array", "Hash"].include?(property[:class]) && value.is_a?(String)
+            self.send("#{property[:name]}=".to_sym, value)
+          end
         end
       end
       self
@@ -679,6 +679,12 @@ module RedisOrm
           instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
         end
 
+        # serialize array- and hash-type properties 
+        if ['Array', 'Hash'].include?(prop[:class]) && !prop_value.is_a?(String)
+          prop_value = Marshal.dump(prop_value)
+        end
+
+        #TODO put out of loop
         $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
 
         set_expire_on_reference_key(__redis_record_key)

@@ -14,11 +14,12 @@ describe "check basic functionality" do
     user.name = "Anderson"
     User.first.should_not == user
   end
-  
+
   it "test_simple_creation" do
     User.count.should == 0
 
     user = User.new :name => "german"
+    
     user.save
 
     user.should be
@@ -110,8 +111,8 @@ describe "check basic functionality" do
 
     u = User.first
 
-    u.created_at.class.should == Time
-    u.modified_at.class.should == Time
+    u.created_at.class.should == DateTime
+    u.modified_at.class.should == DateTime
     u.wage.class.should == Float
     u.male.class.to_s.should match(/TrueClass|FalseClass/)
     u.age.class.to_s.should match(/Integer|Fixnum/)
@@ -129,8 +130,8 @@ describe "check basic functionality" do
 
     u = DefaultUser.first
 
-    u.created_at.class.should == Time
-    u.modified_at.class.should == Time
+    u.created_at.class.should == DateTime
+    u.modified_at.class.should == DateTime
     u.wage.class.should == Float
     u.male.class.to_s.should match(/TrueClass|FalseClass/)
     u.admin.class.to_s.should match(/TrueClass|FalseClass/)
@@ -150,15 +151,24 @@ describe "check basic functionality" do
     du_saved.name.should == "germaninthetown"
     du_saved.admin.should == false
   end
-  
+
   it "should expand timestamps declaration properly" do
     t = TimeStamp.new
     t.save
-    
     t.created_at.should be
     t.modified_at.should be
     t.created_at.day.should == Time.now.day
     t.modified_at.day.should == Time.now.day
+  end
+
+  it "should store arrays in the property correctly" do
+    a = ArticleWithComments.new :title => "Article #1", :comments => ["Hello", "there are comments"]
+    expect {
+      a.save
+    }.to change(ArticleWithComments, :count).by(1)
+    
+    saved_article = ArticleWithComments.last
+    saved_article.comments.should == ["Hello", "there are comments"]
   end
 
   it "should properly transform :default values to right classes (if :default values are wrong) so when comparing them to other/stored instances they'll be the same" do

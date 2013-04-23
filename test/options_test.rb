@@ -81,7 +81,7 @@ describe "test options" do
     Photo.last(:conditions => {:image => "facepalm.jpg", :image_type => "jpg"}).should == @photo1
     Photo.last(:conditions => {:image => "boobs.png", :image_type => "png"}).should == @photo2
   end
-  
+
   it "should correctly save boolean values" do
     $redis.hgetall("photo:#{@photo1.id}")["inverted"].should == "true"
     $redis.hgetall("photo:#{@photo2.id}")["inverted"].should == "false"

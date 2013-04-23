@@ -105,8 +105,8 @@ describe "check basic functionality" do
 
     u = UuidUser.first
 
-    u.created_at.class.should == Time
-    u.modified_at.class.should == Time
+    u.created_at.class.should == DateTime
+    u.modified_at.class.should == DateTime
     u.wage.class.should == Float
     u.male.class.to_s.should match(/TrueClass|FalseClass/)
     u.age.class.to_s.should match(/Integer|Fixnum/)
@@ -126,8 +126,8 @@ describe "check basic functionality" do
 
     u = UuidDefaultUser.first
 
-    u.created_at.class.should == Time
-    u.modified_at.class.should == Time
+    u.created_at.class.should == DateTime
+    u.modified_at.class.should == DateTime
     u.wage.class.should == Float
     u.male.class.to_s.should match(/TrueClass|FalseClass/)
     u.admin.class.to_s.should match(/TrueClass|FalseClass/)

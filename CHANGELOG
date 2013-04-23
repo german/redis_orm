@@ -1,4 +1,4 @@
-v0.6.2 [23-05-2011]
+v0.6.2 [23-05-2012]
 * adds an ability to specify/create indices on *has_one* and *belongs_to* associations
 * fixed error with updating indices in *belongs_to* association with :as option 
 * tests refactoring, now all tests are run with Rake::TestTask 
