@@ -537,113 +537,20 @@ module RedisOrm
       else
         $redis.incr("#{model_name}:id")
       end
-    end
+    end    
     
     def save
       return false if !valid?
 
-      # an exception should be raised before all saving procedures if wrong value type is specified (especcially true for Arrays and Hashes)
-      @@properties[model_name].each do |prop|
-        prop_value = self.send(prop[:name].to_sym)
-        
-        if prop_value && prop[:class] != prop_value.class.to_s && ['Array', 'Hash'].include?(prop[:class].to_s)
-          raise TypeMismatchError 
-        end
-      end
+      _check_mismatched_types_for_values
       
-      # store here initial persisted flag so we could invoke :after_create callbacks in the end of the function
+      # store here initial persisted flag so we could invoke :after_create callbacks in the end of *save* function
       was_persisted = persisted?
 
       if persisted? # then there might be old indices
-        # check whether there's old indices exists and if yes - delete them
-        @@properties[model_name].each do |prop|
-          # if there were no changes for current property skip it (indices remains the same)
-          next if ! self.send(:"#{prop[:name]}_changed?")
-          
-          prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
-          prop_value = instance_variable_get(:"@#{prop[:name]}")
-          # TODO DRY in destroy also
-          if prop[:options][:sortable]
-            if prop[:class].eql?("String")
-              $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
-              # remove id from every indexed property
-              @@indices[model_name].each do |index|
-                $redis.lrem "#{construct_prepared_index(index)}:#{prop[:name]}_ids", 1, "#{prop_value}:#{@id}"
-              end
-            else
-              $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
-              # remove id from every indexed property
-              @@indices[model_name].each do |index|
-                $redis.zrem "#{construct_prepared_index(index)}:#{prop[:name]}_ids", @id
-              end
-            end
-          end
-
-          indices = @@indices[model_name].inject([]) do |sum, models_index|
-            if models_index[:name].is_a?(Array)
-              if models_index[:name].include?(prop[:name])
-                sum << models_index
-              else
-                sum
-              end
-            else
-              if models_index[:name] == prop[:name]
-                sum << models_index
-              else
-                sum
-              end
-            end
-          end
-
-          if !indices.empty?
-            indices.each do |index|
-              if index[:name].is_a?(Array)
-                keys_to_delete = if index[:name].index(prop) == 0
-                  $redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
-                else
-                  $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
-                end
-
-                keys_to_delete.each{|key| $redis.del(key)}
-              else
-                key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
-                $redis.del key_to_delete
-              end
-
-              # also we need to delete associated records *indices*
-              if !@@associations[model_name].empty?
-                @@associations[model_name].each do |assoc|
-                  if :belongs_to == assoc[:type]
-                    # if association has :as option use it, otherwise use standard :foreign_model
-                    foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
-                    if !self.send(foreign_model_name).nil?
-                      if index[:name].is_a?(Array)
-                        keys_to_delete = if index[:name].index(prop) == 0
-                          $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
-                        else
-                          $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
-                        end
-
-                        keys_to_delete.each{|key| $redis.del(key)}
-                      else
-                        beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
-
-                        $redis.del(beginning_of_the_key + prev_prop_value.to_s)
-
-                        index[:options][:unique] ? $redis.set((beginning_of_the_key + prop_value.to_s), @id) : $redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
-                      end
-                    end
-                  end
-                end
-              end # deleting associated records *indices*
-
-            end
-          end
-        end
+        _check_indices_for_persisted # remove old indices if needed
       else # !persisted?        
-        @@callbacks[model_name][:before_create].each do |callback|
-          self.send(callback)
-        end
+        @@callbacks[model_name][:before_create].each{ |callback| self.send(callback) }
  
         @id = get_next_id
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
@@ -651,111 +558,21 @@ module RedisOrm
         self.created_at = Time.now if respond_to? :created_at
       end
 
-      @@callbacks[model_name][:before_save].each do |callback|
-        self.send(callback)
-      end
+      @@callbacks[model_name][:before_save].each{ |callback| self.send(callback) }
 
       # automatically update *modified_at* property if it was defined
       self.modified_at = Time.now if respond_to? :modified_at
 
-      @@properties[model_name].each do |prop|
-        prop_value = self.send(prop[:name].to_sym)
-        
-        if prop_value.nil? && !prop[:options][:default].nil?
-          prop_value = prop[:options][:default]
+      _save_to_redis # main work done here
+      _save_new_indices
 
-          # cast prop_value to proper class if they are not in it
-          # for example 'property :wage, Float, :sortable => true, :default => 20_000' turn 20_000 to 20_000.0
-          if prop[:class] != prop_value.class.to_s
-            prop_value = case prop[:class]
-                         when 'Time'
-                           begin
-                             value.to_s.to_time(:local)
-                           rescue ArgumentError => e
-                             nil
-                           end
-                         when 'Integer'
-                           prop_value.to_i
-                         when 'Float'
-                           prop_value.to_f
-                         when 'RedisOrm::Boolean'
-                           (prop_value == "false" || prop_value == false) ? false : true
-                         end
-          end
-
-          # set instance variable in order to properly save indexes here
-          self.instance_variable_set(:"@#{prop[:name]}", prop_value)
-          instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
-        end
-
-        # serialize array- and hash-type properties 
-        if ['Array', 'Hash'].include?(prop[:class]) && !prop_value.is_a?(String)
-          prop_value = Marshal.dump(prop_value)
-        end
-
-        #TODO put out of loop
-        $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
-
-        set_expire_on_reference_key(__redis_record_key)
-        
-        # reducing @#{prop[:name]}_changes array to the last value
-        prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
-
-        if prop_changes && prop_changes.size > 2
-          instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
-        end
-        
-        # if some property need to be sortable add id of the record to the appropriate sorted set
-        if prop[:options][:sortable]
-          property_value = instance_variable_get(:"@#{prop[:name]}").to_s
-          if prop[:class].eql?("String")
-            sortable_key = "#{model_name}:#{prop[:name]}_ids"
-            el_or_position_to_insert = find_position_to_insert(sortable_key, property_value)
-            el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
-            # add to every indexed property
-            @@indices[model_name].each do |index|
-              sortable_key = "#{construct_prepared_index(index)}:#{prop[:name]}_ids"
-              el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
-            end
-          else
-            score = case prop[:class]
-              when "Integer"; property_value.to_f
-              when "Float"; property_value.to_f
-              when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
-              when "Time"; property_value.to_f
-            end
-            $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
-            # add to every indexed property
-            @@indices[model_name].each do |index|
-              $redis.zadd "#{construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
-            end
-          end
-        end
-      end
-
-      # save new indices (not *reference* onces (for example not these *belongs_to :note, :index => true*)) in order to sort by finders
-      # city:name:Chicago => 1
-      @@indices[model_name].reject{|index| index[:options][:reference]}.each do |index|
-        prepared_index = construct_prepared_index(index) # instance method not class one!
-
-        if index[:options][:unique]
-          $redis.set(prepared_index, @id)
-        else
-          $redis.zadd(prepared_index, Time.now.to_f, @id)
-        end
-      end
-
-      @@callbacks[model_name][:after_save].each do |callback|
-        self.send(callback)
-      end
+      @@callbacks[model_name][:after_save].each{ |callback| self.send(callback) }
 
       if ! was_persisted
-        @@callbacks[model_name][:after_create].each do |callback|
-          self.send(callback)
-        end
+        @@callbacks[model_name][:after_create].each{ |callback| self.send(callback) }
       end
 
-      true # if there were no errors just return true, so *if* conditions would work
+      true # if there were no errors just return true, so *if obj.save* conditions would work
     end
 
     def find_position_to_insert(sortable_key, value)
@@ -927,7 +744,7 @@ module RedisOrm
 
       # remove all associated indices
       @@indices[model_name].each do |index|
-        prepared_index = construct_prepared_index(index) # instance method not class one!
+        prepared_index = _construct_prepared_index(index) # instance method not class one!
 
         if index[:options][:unique]
           $redis.del(prepared_index)
@@ -943,19 +760,208 @@ module RedisOrm
       true # if there were no errors just return true, so *if* conditions would work
     end
     
-    protected
-      def construct_prepared_index(index)
-        prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
-          index[:name].inject([model_name]) do |sum, index_part|
-            sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
-          end.join(':')          
-        else
-          [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}")].join(':')
+  protected
+    def _construct_prepared_index(index)
+      prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
+        index[:name].inject([model_name]) do |sum, index_part|
+          sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
+        end.join(':')          
+      else
+        [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}")].join(':')
+      end
+      
+      prepared_index.downcase! if index[:options][:case_insensitive]
+      
+      prepared_index
+    end
+
+    def _check_mismatched_types_for_values
+      # an exception should be raised before all saving procedures if wrong value type is specified (especcially true for Arrays and Hashes)
+      @@properties[model_name].each do |prop|
+        prop_value = self.send(prop[:name].to_sym)
+        
+        if prop_value && prop[:class] != prop_value.class.to_s && ['Array', 'Hash'].include?(prop[:class].to_s)
+          raise TypeMismatchError 
+        end
+      end
+    end
+    
+    def _check_indices_for_persisted
+      # check whether there's old indices exists and if yes - delete them
+      @@properties[model_name].each do |prop|
+        # if there were no changes for current property skip it (indices remains the same)
+        next if ! self.send(:"#{prop[:name]}_changed?")
+        
+        prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
+        prop_value = instance_variable_get(:"@#{prop[:name]}")
+        # TODO DRY in destroy also
+        if prop[:options][:sortable]
+          if prop[:class].eql?("String")
+            $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
+            # remove id from every indexed property
+            @@indices[model_name].each do |index|
+              $redis.lrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", 1, "#{prop_value}:#{@id}"
+            end
+          else
+            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+            # remove id from every indexed property
+            @@indices[model_name].each do |index|
+              $redis.zrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", @id
+            end
+          end
+        end
+
+        indices = @@indices[model_name].inject([]) do |sum, models_index|
+          if models_index[:name].is_a?(Array)
+            if models_index[:name].include?(prop[:name])
+              sum << models_index
+            else
+              sum
+            end
+          else
+            if models_index[:name] == prop[:name]
+              sum << models_index
+            else
+              sum
+            end
+          end
+        end
+
+        if !indices.empty?
+          indices.each do |index|
+            if index[:name].is_a?(Array)
+              keys_to_delete = if index[:name].index(prop) == 0
+                $redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
+              else
+                $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
+              end
+
+              keys_to_delete.each{|key| $redis.del(key)}
+            else
+              key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
+              $redis.del key_to_delete
+            end
+
+            # also we need to delete associated records *indices*
+            if !@@associations[model_name].empty?
+              @@associations[model_name].each do |assoc|
+                if :belongs_to == assoc[:type]
+                  # if association has :as option use it, otherwise use standard :foreign_model
+                  foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
+                  if !self.send(foreign_model_name).nil?
+                    if index[:name].is_a?(Array)
+                      keys_to_delete = if index[:name].index(prop) == 0
+                        $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
+                      else
+                        $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
+                      end
+
+                      keys_to_delete.each{|key| $redis.del(key)}
+                    else
+                      beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
+
+                      $redis.del(beginning_of_the_key + prev_prop_value.to_s)
+
+                      index[:options][:unique] ? $redis.set((beginning_of_the_key + prop_value.to_s), @id) : $redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
+                    end
+                  end
+                end
+              end
+            end # deleting associated records *indices*
+          end
+        end
+      end
+    end
+      
+    def _save_to_redis
+      @@properties[model_name].each do |prop|
+        prop_value = self.send(prop[:name].to_sym)
+        
+        if prop_value.nil? && !prop[:options][:default].nil?
+          prop_value = prop[:options][:default]
+
+          # cast prop_value to proper class if they are not in it
+          # for example 'property :wage, Float, :sortable => true, :default => 20_000' turn 20_000 to 20_000.0
+          if prop[:class] != prop_value.class.to_s
+            prop_value = case prop[:class]
+                         when 'Time'
+                           begin
+                             value.to_s.to_time(:local)
+                           rescue ArgumentError => e
+                             nil
+                           end
+                         when 'Integer'
+                           prop_value.to_i
+                         when 'Float'
+                           prop_value.to_f
+                         when 'RedisOrm::Boolean'
+                           (prop_value == "false" || prop_value == false) ? false : true
+                         end
+          end
+
+          # set instance variable in order to properly save indexes here
+          self.instance_variable_set(:"@#{prop[:name]}", prop_value)
+          instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
+        end
+
+        # serialize array- and hash-type properties 
+        if ['Array', 'Hash'].include?(prop[:class]) && !prop_value.is_a?(String)
+          prop_value = Marshal.dump(prop_value)
+        end
+
+        #TODO put out of loop
+        $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
+
+        set_expire_on_reference_key(__redis_record_key)
+        
+        # reducing @#{prop[:name]}_changes array to the last value
+        prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
+
+        if prop_changes && prop_changes.size > 2
+          instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
         end
         
-        prepared_index.downcase! if index[:options][:case_insensitive]
-        
-        prepared_index
+        # if some property need to be sortable add id of the record to the appropriate sorted set
+        if prop[:options][:sortable]
+          property_value = instance_variable_get(:"@#{prop[:name]}").to_s
+          if prop[:class].eql?("String")
+            sortable_key = "#{model_name}:#{prop[:name]}_ids"
+            el_or_position_to_insert = find_position_to_insert(sortable_key, property_value)
+            el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
+            # add to every indexed property
+            @@indices[model_name].each do |index|
+              sortable_key = "#{_construct_prepared_index(index)}:#{prop[:name]}_ids"
+              el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
+            end
+          else
+            score = case prop[:class]
+              when "Integer"; property_value.to_f
+              when "Float"; property_value.to_f
+              when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
+              when "Time"; property_value.to_f
+            end
+            $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
+            # add to every indexed property
+            @@indices[model_name].each do |index|
+              $redis.zadd "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
+            end
+          end
+        end
       end
+    end
+
+    def _save_new_indices
+      # save new indices (not *reference* onces (for example not these *belongs_to :note, :index => true*)) in order to sort by finders
+      # city:name:Chicago => 1
+      @@indices[model_name].reject{|index| index[:options][:reference]}.each do |index|
+        prepared_index = _construct_prepared_index(index) # instance method not class one!
+
+        if index[:options][:unique]
+          $redis.set(prepared_index, @id)
+        else
+          $redis.zadd(prepared_index, Time.now.to_f, @id)
+        end
+      end
+    end
   end
 end
