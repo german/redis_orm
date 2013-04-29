@@ -1,3 +1,7 @@
+v0.7 [30-04-2013]
+* implemented Array and Hash properties types
+* fixed a bug with Date property implementation
+
 v0.6.2 [23-05-2012]
 * adds an ability to specify/create indices on *has_one* and *belongs_to* associations
 * fixed error with updating indices in *belongs_to* association with :as option 

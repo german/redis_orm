@@ -82,8 +82,11 @@ Supported property types:
 *  **RedisOrm::Boolean**
     there is no Boolean class in Ruby so it's a special class to store TrueClass or FalseClass objects
 
-*  **Time**
+*  **Time** or **DateTime**
 
+*  **Array** or **Hash**
+  RedisOrm automatically will handle serializing/deserializing into string using Marshal class 
+  
 Following options are available in property declaration:
 
 *  **:default**

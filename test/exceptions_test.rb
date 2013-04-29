@@ -32,4 +32,16 @@ describe "exceptions test" do
     jigsaw = Jigsaw.create :title => "jigsaw"
     lambda { User.create!(:name => "John", :age => 44, :profile => jigsaw) }.should raise_error(RedisOrm::TypeMismatchError)
   end
+
+  it "should throw an exception if wrong format of the default value is specified for Array/Hash property" do
+    a = ArticleWithComments.new :title => "Article #1", :rates => [1,2,3,4,5]
+    lambda {
+      a.save
+    }.should raise_error(RedisOrm::TypeMismatchError)
+    
+    a = ArticleWithComments.new :title => "Article #1", :comments => 12
+    lambda {
+      a.save
+    }.should raise_error(RedisOrm::TypeMismatchError)
+  end
 end

@@ -542,6 +542,15 @@ module RedisOrm
     def save
       return false if !valid?
 
+      # an exception should be raised before all saving procedures if wrong value type is specified (especcially true for Arrays and Hashes)
+      @@properties[model_name].each do |prop|
+        prop_value = self.send(prop[:name].to_sym)
+        
+        if prop_value && prop[:class] != prop_value.class.to_s && ['Array', 'Hash'].include?(prop[:class].to_s)
+          raise TypeMismatchError 
+        end
+      end
+      
       # store here initial persisted flag so we could invoke :after_create callbacks in the end of the function
       was_persisted = persisted?
 
@@ -651,7 +660,7 @@ module RedisOrm
 
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
-
+        
         if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
 

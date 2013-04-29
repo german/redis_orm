@@ -171,6 +171,26 @@ describe "check basic functionality" do
     saved_article.comments.should == ["Hello", "there are comments"]
   end
 
+  it "should store default hash in the property if it's not provided" do
+    a = ArticleWithComments.new :title => "Article #1"
+    expect {
+      a.save
+    }.to change(ArticleWithComments, :count).by(1)
+    
+    saved_article = ArticleWithComments.last
+    saved_article.rates.should == {1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0}
+  end
+  
+  it "should store hash in the property correctly" do
+    a = ArticleWithComments.new :title => "Article #1", :rates => {4 => 134}
+    expect {
+      a.save
+    }.to change(ArticleWithComments, :count).by(1)
+    
+    saved_article = ArticleWithComments.last
+    saved_article.rates.should == {4 => 134}
+  end
+  
   it "should properly transform :default values to right classes (if :default values are wrong) so when comparing them to other/stored instances they'll be the same" do
     # SortableUser class has 3 properties with wrong classes of :default value
     u = SortableUser.new :name => "Alan"
