@@ -5,7 +5,7 @@ require 'rake/testtask'
 =begin
 require 'echoe'
 
-Echoe.new('redis_orm', '0.6.2') do |p|
+Echoe.new('redis_orm', '0.7') do |p|
   p.description    = "ORM for Redis (advanced key-value storage) with ActiveRecord API"
   p.url            = "https://github.com/german/redis_orm"
   p.author         = "Dmitrii Samoilov"

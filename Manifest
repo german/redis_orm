@@ -6,6 +6,8 @@ README.md
 Rakefile
 TODO
 benchmarks/sortable_benchmark.rb
+lib/rails/generators/redis_orm/model/model_generator.rb
+lib/rails/generators/redis_orm/model/templates/model.rb.erb
 lib/redis_orm.rb
 lib/redis_orm/active_model_behavior.rb
 lib/redis_orm/associations/belongs_to.rb
@@ -16,6 +18,8 @@ lib/redis_orm/associations/has_one.rb
 lib/redis_orm/redis_orm.rb
 lib/redis_orm/utils.rb
 redis_orm.gemspec
+spec/generators/model_generator_spec.rb
+spec/spec_helper.rb
 test/association_indices_test.rb
 test/associations_test.rb
 test/atomicity_test.rb
@@ -24,6 +28,7 @@ test/callbacks_test.rb
 test/changes_array_test.rb
 test/classes/album.rb
 test/classes/article.rb
+test/classes/article_with_comments.rb
 test/classes/book.rb
 test/classes/catalog_item.rb
 test/classes/category.rb
@@ -36,6 +41,8 @@ test/classes/cutout_aggregator.rb
 test/classes/default_user.rb
 test/classes/dynamic_finder_user.rb
 test/classes/empty_person.rb
+test/classes/expire_user.rb
+test/classes/expire_user_with_predicate.rb
 test/classes/giftcard.rb
 test/classes/jigsaw.rb
 test/classes/location.rb
@@ -53,6 +60,7 @@ test/classes/uuid_timestamp.rb
 test/classes/uuid_user.rb
 test/dynamic_finders_test.rb
 test/exceptions_test.rb
+test/expire_records_test.rb
 test/has_one_has_many_test.rb
 test/indices_test.rb
 test/modules/belongs_to_model_within_module.rb

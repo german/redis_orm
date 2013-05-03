@@ -85,7 +85,7 @@ Supported property types:
 *  **Time** or **DateTime**
 
 *  **Array** or **Hash**
-  RedisOrm automatically will handle serializing/deserializing into string using Marshal class 
+  RedisOrm automatically will handle serializing/deserializing arrays and hashes into strings using Marshal class 
   
 Following options are available in property declaration:
 
@@ -567,6 +567,10 @@ end
 ```
 
 To run all tests just invoke *rake test*
+
+## Contributors
+
+[Tatsuya Sato](https://github.com/satoryu)
 
 Copyright © 2011 Dmitrii Samoilov, released under the MIT license
 
