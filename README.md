@@ -170,7 +170,7 @@ To extract all or part of the associated records you could use 4 options:
 
 ```ruby
 # for example we associate 2 photos with the album
-@album.photos << Photo.create(:image_type => "image/png", :image => "boobs.png")
+@album.photos << Photo.create(:image_type => "image/png", :image => "cats.png")
 @album.photos << Photo.create(:image_type => "image/jpeg", :image => "facepalm.jpg")
 
 @album.photos.all(:limit => 0, :offset => 0) # => []
@@ -185,7 +185,7 @@ Photo.all(:order => "desc", :limit => 10, :offset => 50)
 Photo.all(:order => "desc", :offset => 10, :conditions => {:image_type => "image/jpeg"})
 
 Photo.find(:all, :conditions => {:image => "facepalm.jpg"}) # => [...]
-Photo.find(:first, :conditions => {:image => "boobs.png"}) # => [...]
+Photo.find(:first, :conditions => {:image => "cats.png"}) # => [...]
 ```
 
 ## Using UUID instead of numeric id
