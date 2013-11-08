@@ -142,12 +142,12 @@ module RedisOrm
       end
       
       def count
-        $redis.zcard("#{model_name}:ids").to_i
+        RedisOrm.redis.zcard("#{model_name}:ids").to_i
       end
 
       def first(options = {})
         if options.empty?
-          id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => [0, 1])
+          id = RedisOrm.redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => [0, 1])
           id.empty? ? nil : find(id[0])
         else
           find(:first, options)
@@ -156,7 +156,7 @@ module RedisOrm
 
       def last(options = {})
         if options.empty?
-          id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => [0, 1])
+          id = RedisOrm.redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => [0, 1])
           id.empty? ? nil : find(id[0])
         else
           find(:last, options)
@@ -263,7 +263,7 @@ module RedisOrm
         
         if order_by_property_is_string
           if direction.to_s == 'desc'
-            ids_length = $redis.llen(ids_key)
+            ids_length = RedisOrm.redis.llen(ids_key)
             limit = if options[:offset] && options[:limit]
               [(ids_length - options[:offset].to_i - options[:limit].to_i), (ids_length - options[:offset].to_i - 1)]
             elsif options[:limit]
@@ -273,7 +273,7 @@ module RedisOrm
             else
               [0, -1]
             end
-            $redis.lrange(ids_key, *limit).reverse.compact.collect{|id| find(id.split(':').last)}
+            RedisOrm.redis.lrange(ids_key, *limit).reverse.compact.collect{|id| find(id.split(':').last)}
           else
             limit = if options[:offset] && options[:limit]
               [options[:offset].to_i, (options[:offset].to_i + options[:limit].to_i)]
@@ -284,17 +284,17 @@ module RedisOrm
             else
               [0, -1]
             end
-            $redis.lrange(ids_key, *limit).compact.collect{|id| find(id.split(':').last)}
+            RedisOrm.redis.lrange(ids_key, *limit).compact.collect{|id| find(id.split(':').last)}
           end
         else
           if index && index[:options][:unique]
-            id = $redis.get prepared_index
+            id = RedisOrm.redis.get prepared_index
             model_name.to_s.camelize.constantize.find(id)
           else
             if direction.to_s == 'desc'
-              $redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
+              RedisOrm.redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
             else
-              $redis.zrangebyscore(ids_key, 0, order_max_limit, :limit => limit).compact.collect{|id| find(id)}
+              RedisOrm.redis.zrangebyscore(ids_key, 0, order_max_limit, :limit => limit).compact.collect{|id| find(id)}
             end
           end
         end
@@ -304,7 +304,7 @@ module RedisOrm
         if args.first.is_a?(Array)
           return [] if args.first.empty?
           args.first.inject([]) do |array, id|
-            record = $redis.hgetall "#{model_name}:#{id}"
+            record = RedisOrm.redis.hgetall "#{model_name}:#{id}"
             if record && !record.empty?
               array << new(record, id, true)
             end
@@ -327,7 +327,7 @@ module RedisOrm
               all(options.merge({:limit => 1, :order => reversed}))[0]
             else
               id = first
-              record = $redis.hgetall "#{model_name}:#{id}"
+              record = RedisOrm.redis.hgetall "#{model_name}:#{id}"
               record && record.empty? ? nil : new(record, id, true)
           end
         end        
@@ -377,7 +377,7 @@ module RedisOrm
           end
         end
         
-        $redis.expire(obj.__redis_record_key, options[:expire_in].to_i) if !options[:expire_in].blank?
+        RedisOrm.redis.expire(obj.__redis_record_key, options[:expire_in].to_i) if !options[:expire_in].blank?
 
         obj
       end      
@@ -404,19 +404,19 @@ module RedisOrm
 
           if method_name =~ /^find_by_(\w*)/
             id = if index[:options][:unique]            
-              $redis.get prepared_index
+              RedisOrm.redis.get prepared_index
             else
-              $redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => [0, 1])[0]
+              RedisOrm.redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => [0, 1])[0]
             end
             model_name.to_s.camelize.constantize.find(id)
           elsif method_name =~ /^find_all_by_(\w*)/
             records = []          
 
             if index[:options][:unique]            
-              id = $redis.get prepared_index
+              id = RedisOrm.redis.get prepared_index
               records << model_name.to_s.camelize.constantize.find(id)
             else
-              ids = $redis.zrangebyscore(prepared_index, 0, Time.now.to_f)
+              ids = RedisOrm.redis.zrangebyscore(prepared_index, 0, Time.now.to_f)
               records += model_name.to_s.camelize.constantize.find(ids)
             end          
 
@@ -450,7 +450,7 @@ module RedisOrm
           set_expire = class_expire[:options][:if][self]  # invoking specified *:if* Proc with current record as *self* 
         end
 
-        $redis.expire(key, class_expire[:seconds].to_i) if set_expire
+        RedisOrm.redis.expire(key, class_expire[:seconds].to_i) if set_expire
       end
     end
    
@@ -535,7 +535,7 @@ module RedisOrm
       if @@use_uuid_as_id[model_name]
         @@uuid.generate(:compact)
       else
-        $redis.incr("#{model_name}:id")
+        RedisOrm.redis.incr("#{model_name}:id")
       end
     end    
     
@@ -553,7 +553,7 @@ module RedisOrm
         @@callbacks[model_name][:before_create].each{ |callback| self.send(callback) }
  
         @id = get_next_id
-        $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
+        RedisOrm.redis.zadd "#{model_name}:ids", Time.now.to_f, @id
         @persisted = true
         self.created_at = Time.now if respond_to? :created_at
       end
@@ -576,16 +576,16 @@ module RedisOrm
     end
 
     def find_position_to_insert(sortable_key, value)
-      end_index = $redis.llen(sortable_key)
+      end_index = RedisOrm.redis.llen(sortable_key)
 
       return 0 if end_index == 0
       
       start_index = 0
       pivot_index = end_index / 2
 
-      start_el = $redis.lindex(sortable_key, start_index)
-      end_el   = $redis.lindex(sortable_key, end_index - 1)
-      pivot_el = $redis.lindex(sortable_key, pivot_index)
+      start_el = RedisOrm.redis.lindex(sortable_key, start_index)
+      end_el   = RedisOrm.redis.lindex(sortable_key, end_index - 1)
+      pivot_el = RedisOrm.redis.lindex(sortable_key, pivot_index)
 
       while start_index != end_index
         # aa..ab..ac..bd <- ad
@@ -609,9 +609,9 @@ module RedisOrm
           pivot_index = pivot_index + ((end_index - pivot_index) / 2)
           end_index   = end_index          
         end
-        start_el = $redis.lindex(sortable_key, start_index)
-        end_el   = $redis.lindex(sortable_key, end_index - 1)
-        pivot_el = $redis.lindex(sortable_key, pivot_index)
+        start_el = RedisOrm.redis.lindex(sortable_key, start_index)
+        end_el   = RedisOrm.redis.lindex(sortable_key, end_index - 1)
+        pivot_el = RedisOrm.redis.lindex(sortable_key, pivot_index)
       end
       start_el
     end
@@ -637,18 +637,18 @@ module RedisOrm
 
       @@properties[model_name].each do |prop|
         property_value = instance_variable_get(:"@#{prop[:name]}").to_s
-        $redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
+        RedisOrm.redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
         
         if prop[:options][:sortable]
           if prop[:class].eql?("String")
-            $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
+            RedisOrm.redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
           else
-            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+            RedisOrm.redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
           end
         end
       end
 
-      $redis.zrem "#{model_name}:ids", @id
+      RedisOrm.redis.zrem "#{model_name}:ids", @id
 
       # also we need to delete *indices* of associated records
       if !@@associations[model_name].empty?
@@ -661,12 +661,12 @@ module RedisOrm
               @@indices[model_name].each do |index|
                 keys_to_delete = if index[:name].is_a?(Array)
                   full_index = index[:name].inject([]){|sum, index_part| sum << index_part}.join(':')
-                  $redis.keys "#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
+                  RedisOrm.redis.keys "#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
                 else
                   ["#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
                 end
                 keys_to_delete.each do |key| 
-                  index[:options][:unique] ? $redis.del(key) : $redis.zrem(key, @id)
+                  index[:options][:unique] ? RedisOrm.redis.del(key) : RedisOrm.redis.zrem(key, @id)
                 end
               end
             end
@@ -688,26 +688,26 @@ module RedisOrm
               if assoc[:options][:polymorphic]
                 records << self.send(foreign_model_name)
                 # get real foreign_model's name in order to delete backlinks properly
-                foreign_model = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
-                $redis.del("#{model_name}:#{id}:#{foreign_model_name}_type")
-                $redis.del("#{model_name}:#{id}:#{foreign_model_name}_id")
+                foreign_model = RedisOrm.redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
+                RedisOrm.redis.del("#{model_name}:#{id}:#{foreign_model_name}_type")
+                RedisOrm.redis.del("#{model_name}:#{id}:#{foreign_model_name}_id")
               else
                 records << self.send(foreign_model_name)
-                $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
+                RedisOrm.redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
               end
             when :has_one
               foreign_model = assoc[:foreign_model].to_s
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
               records << self.send(foreign_model_name)
 
-              $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
+              RedisOrm.redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
             when :has_many
               foreign_model = assoc[:foreign_models].to_s.singularize
               foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_models]
               records += self.send(foreign_models_name)
 
               # delete all members             
-              $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
+              RedisOrm.redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
           end
 
           # check whether foreign_model also has an assoc to the destroying record
@@ -719,15 +719,15 @@ module RedisOrm
               # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
               # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
               if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.to_sym}
-                $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
+                RedisOrm.redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
 
               if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
-                $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
+                RedisOrm.redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
 
               if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
-                $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.pluralize}", @id
+                RedisOrm.redis.zrem "#{foreign_model}:#{record.id}:#{model_name.pluralize}", @id
               end
             end
           end
@@ -747,9 +747,9 @@ module RedisOrm
         prepared_index = _construct_prepared_index(index) # instance method not class one!
 
         if index[:options][:unique]
-          $redis.del(prepared_index)
+          RedisOrm.redis.del(prepared_index)
         else
-          $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
+          RedisOrm.redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
         end
       end
 
@@ -797,16 +797,16 @@ module RedisOrm
         # TODO DRY in destroy also
         if prop[:options][:sortable]
           if prop[:class].eql?("String")
-            $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
+            RedisOrm.redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
             # remove id from every indexed property
             @@indices[model_name].each do |index|
-              $redis.lrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", 1, "#{prop_value}:#{@id}"
+              RedisOrm.redis.lrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", 1, "#{prop_value}:#{@id}"
             end
           else
-            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+            RedisOrm.redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
             # remove id from every indexed property
             @@indices[model_name].each do |index|
-              $redis.zrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", @id
+              RedisOrm.redis.zrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", @id
             end
           end
         end
@@ -831,15 +831,15 @@ module RedisOrm
           indices.each do |index|
             if index[:name].is_a?(Array)
               keys_to_delete = if index[:name].index(prop) == 0
-                $redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
+                RedisOrm.redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
               else
-                $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
+                RedisOrm.redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
               end
 
-              keys_to_delete.each{|key| $redis.del(key)}
+              keys_to_delete.each{|key| RedisOrm.redis.del(key)}
             else
               key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
-              $redis.del key_to_delete
+              RedisOrm.redis.del key_to_delete
             end
 
             # also we need to delete associated records *indices*
@@ -851,18 +851,18 @@ module RedisOrm
                   if !self.send(foreign_model_name).nil?
                     if index[:name].is_a?(Array)
                       keys_to_delete = if index[:name].index(prop) == 0
-                        $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
+                        RedisOrm.redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
                       else
-                        $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
+                        RedisOrm.redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
                       end
 
-                      keys_to_delete.each{|key| $redis.del(key)}
+                      keys_to_delete.each{|key| RedisOrm.redis.del(key)}
                     else
                       beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
 
-                      $redis.del(beginning_of_the_key + prev_prop_value.to_s)
+                      RedisOrm.redis.del(beginning_of_the_key + prev_prop_value.to_s)
 
-                      index[:options][:unique] ? $redis.set((beginning_of_the_key + prop_value.to_s), @id) : $redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
+                      index[:options][:unique] ? RedisOrm.redis.set((beginning_of_the_key + prop_value.to_s), @id) : RedisOrm.redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
                     end
                   end
                 end
@@ -910,7 +910,7 @@ module RedisOrm
         end
 
         #TODO put out of loop
-        $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
+        RedisOrm.redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
 
         set_expire_on_reference_key(__redis_record_key)
         
@@ -927,11 +927,11 @@ module RedisOrm
           if prop[:class].eql?("String")
             sortable_key = "#{model_name}:#{prop[:name]}_ids"
             el_or_position_to_insert = find_position_to_insert(sortable_key, property_value)
-            el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
+            el_or_position_to_insert == 0 ? RedisOrm.redis.lpush(sortable_key, "#{property_value}:#{@id}") : RedisOrm.redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
             # add to every indexed property
             @@indices[model_name].each do |index|
               sortable_key = "#{_construct_prepared_index(index)}:#{prop[:name]}_ids"
-              el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
+              el_or_position_to_insert == 0 ? RedisOrm.redis.lpush(sortable_key, "#{property_value}:#{@id}") : RedisOrm.redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
             end
           else
             score = case prop[:class]
@@ -940,10 +940,10 @@ module RedisOrm
               when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
               when "Time"; property_value.to_f
             end
-            $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
+            RedisOrm.redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
             # add to every indexed property
             @@indices[model_name].each do |index|
-              $redis.zadd "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
+              RedisOrm.redis.zadd "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
             end
           end
         end
@@ -957,9 +957,9 @@ module RedisOrm
         prepared_index = _construct_prepared_index(index) # instance method not class one!
 
         if index[:options][:unique]
-          $redis.set(prepared_index, @id)
+          RedisOrm.redis.set(prepared_index, @id)
         else
-          $redis.zadd(prepared_index, Time.now.to_f, @id)
+          RedisOrm.redis.zadd(prepared_index, Time.now.to_f, @id)
         end
       end
     end

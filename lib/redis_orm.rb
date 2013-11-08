@@ -26,3 +26,18 @@ class String
 end
 
 require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'redis_orm')
+
+module RedisOrm
+  extend self
+
+  attr_accessor :redis
+  @@redis = Redis.new
+
+  def self.redis=(redis)
+    @@redis = redis
+  end
+
+  def self.redis
+    @@redis
+  end
+end

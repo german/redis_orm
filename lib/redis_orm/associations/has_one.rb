@@ -20,7 +20,7 @@ module RedisOrm
         end
         
         define_method foreign_model_name do
-          foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+          foreign_model.to_s.camelize.constantize.find(RedisOrm.redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
         end     
 
         # profile = Profile.create :title => 'test'
@@ -31,9 +31,9 @@ module RedisOrm
 
           reference_key = "#{model_name}:#{id}:#{foreign_model_name}"
           if assoc_with_record.nil?
-            $redis.del(reference_key)
+            RedisOrm.redis.del(reference_key)
           elsif assoc_with_record.model_name == foreign_model.to_s
-            $redis.set(reference_key, assoc_with_record.id)
+            RedisOrm.redis.set(reference_key, assoc_with_record.id)
             set_expire_on_reference_key(reference_key)
           else
             raise TypeMismatchError
@@ -47,9 +47,9 @@ module RedisOrm
               prepared_index.downcase! if index[:options][:case_insensitive]
 
               if index[:options][:unique]
-                $redis.del(prepared_index, id)
+                RedisOrm.redis.del(prepared_index, id)
               else
-                $redis.zrem(prepared_index, id)
+                RedisOrm.redis.zrem(prepared_index, id)
               end
             end
             
@@ -61,24 +61,24 @@ module RedisOrm
             prepared_index.downcase! if index[:options][:case_insensitive]
 
             if index[:options][:unique]
-              $redis.set(prepared_index, id)
+              RedisOrm.redis.set(prepared_index, id)
             else
-              $redis.zadd(prepared_index, Time.now.to_f, id)
+              RedisOrm.redis.zadd(prepared_index, Time.now.to_f, id)
             end
           end
 
           if !options[:as]
             if assoc_with_record.nil?
               # remove old assoc
-              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", id) if old_assoc
+              RedisOrm.redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", id) if old_assoc
             else
               # check whether *assoc_with_record* object has *belongs_to* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
               if class_associations[assoc_with_record.model_name].detect{|h| [:belongs_to, :has_one].include?(h[:type]) && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
                 # old association is being rewritten here automatically so we don't have to worry about it
                 assoc_with_record.send("#{model_name}=", self)
-              elsif class_associations[assoc_with_record.model_name].detect{|h| :has_many == h[:type] && h[:foreign_models] == model_name.to_s.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
+              elsif class_associations[assoc_with_record.model_name].detect{|h| :has_many == h[:type] && h[:foreign_models] == model_name.to_s.pluralize.to_sym} && !RedisOrm.redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
                 # remove old assoc
-                $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", id) if old_assoc
+                RedisOrm.redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", id) if old_assoc
                 # create/add new ones
                 assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
               end
