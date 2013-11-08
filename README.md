@@ -51,11 +51,14 @@ rake test
 
 ## Setting up a connection to the redis server
 
-If you are using Rails you should initialize redis and set up global RedisOrm.redis variable in *config/initializers/redis.rb* file:
-
+And now you can point RedisOrm to any redis you want, for example:
+(if you got the global redis variable already set somewhere in initializers/redis.rb)
 ```ruby
-require 'redis'
-RedisOrm.redis = Redis.new(:host => 'localhost', :port => 6379)
+RedisOrm.redis = $redis
+```
+otherwise you can easily point anywhere you want like you are use to, e.g.:
+```ruby
+RedisOrm.redis = Redis.new(host: 'localhost', port: 6379, db: '9')
 ```
 
 ## Defining a model and specifing properties
