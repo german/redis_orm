@@ -30,7 +30,7 @@ require File.join(File.dirname(File.expand_path(__FILE__)), 'redis_orm', 'redis_
 module RedisOrm
   extend self
 
-  attr_accessor :redis
+  attr_accessor :redis, :redis_pid
   @@redis = Redis.new
 
   def self.redis=(redis)
@@ -40,4 +40,5 @@ module RedisOrm
   def self.redis
     @@redis
   end
+
 end

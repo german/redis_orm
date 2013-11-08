@@ -9,9 +9,9 @@ describe "test options" do
   end
 
   it "should return records in specified order" do
-    $redis.llen("sortable_user:name_ids").to_i.should == SortableUser.count
-    $redis.zcard("sortable_user:age_ids").to_i.should == SortableUser.count
-    $redis.zcard("sortable_user:wage_ids").to_i.should == SortableUser.count
+    RedisOrm.redis.llen("sortable_user:name_ids").to_i.should == SortableUser.count
+    RedisOrm.redis.zcard("sortable_user:age_ids").to_i.should == SortableUser.count
+    RedisOrm.redis.zcard("sortable_user:wage_ids").to_i.should == SortableUser.count
     
     SortableUser.find(:all, :order => [:name, :asc]).should == [@abe, @dan, @michael, @todd]
     SortableUser.find(:all, :order => [:name, :desc]).should == [@todd, @michael, @dan, @abe]
@@ -42,9 +42,9 @@ describe "test options" do
   it "should update keys after the persisted object was edited and sort properly" do
     @abe.update_attributes :name => "Zed", :age => 12, :wage => 10.0, :address => "Santa Fe"
 
-    $redis.llen("sortable_user:name_ids").to_i.should == SortableUser.count
-    $redis.zcard("sortable_user:age_ids").to_i.should == SortableUser.count
-    $redis.zcard("sortable_user:wage_ids").to_i.should == SortableUser.count
+    RedisOrm.redis.llen("sortable_user:name_ids").to_i.should == SortableUser.count
+    RedisOrm.redis.zcard("sortable_user:age_ids").to_i.should == SortableUser.count
+    RedisOrm.redis.zcard("sortable_user:wage_ids").to_i.should == SortableUser.count
 
     SortableUser.find(:all, :order => [:name, :asc]).should == [@dan, @michael, @todd, @abe]
     SortableUser.find(:all, :order => [:name, :desc]).should == [@abe, @todd, @michael, @dan]
@@ -60,9 +60,9 @@ describe "test options" do
     user_count = SortableUser.count
     @abe.destroy
 
-    $redis.llen("sortable_user:name_ids").to_i.should == user_count - 1
-    $redis.zcard("sortable_user:age_ids").to_i.should == user_count - 1
-    $redis.zcard("sortable_user:wage_ids").to_i.should == user_count - 1
+    RedisOrm.redis.llen("sortable_user:name_ids").to_i.should == user_count - 1
+    RedisOrm.redis.zcard("sortable_user:age_ids").to_i.should == user_count - 1
+    RedisOrm.redis.zcard("sortable_user:wage_ids").to_i.should == user_count - 1
 
     SortableUser.find(:all, :order => [:name, :asc]).should == [@dan, @michael, @todd]
     SortableUser.find(:all, :order => [:name, :desc]).should == [@todd, @michael, @dan]

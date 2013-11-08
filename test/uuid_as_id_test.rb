@@ -61,8 +61,8 @@ describe "check basic functionality" do
     
     user.destroy
     UuidUser.count.should == 0
-    $redis.zrank("user:ids", id).should == nil
-    $redis.hgetall("user:#{id}").should == {}
+    RedisOrm.redis.zrank("user:ids", id).should == nil
+    RedisOrm.redis.hgetall("user:#{id}").should == {}
   end
 
   it "should return first and last objects" do

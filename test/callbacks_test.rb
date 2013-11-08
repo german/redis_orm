@@ -5,7 +5,7 @@ describe "check callbacks" do
     user = User.new :first_name => "Robert", :last_name => "Pirsig"
     user.save
 
-    $redis.zrank("users:sorted_by_rating", user.id).should == 0
+    RedisOrm.redis.zrank("users:sorted_by_rating", user.id).should == 0
 
     comment = Comment.create :text => "First!"
     user.comments << comment

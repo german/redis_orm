@@ -51,11 +51,11 @@ rake test
 
 ## Setting up a connection to the redis server
 
-If you are using Rails you should initialize redis and set up global $redis variable in *config/initializers/redis.rb* file:
+If you are using Rails you should initialize redis and set up global RedisOrm.redis variable in *config/initializers/redis.rb* file:
 
 ```ruby
 require 'redis'
-$redis = Redis.new(:host => 'localhost', :port => 6379)
+RedisOrm.redis = Redis.new(:host => 'localhost', :port => 6379)
 ```
 
 ## Defining a model and specifing properties
@@ -546,22 +546,22 @@ Though I'm a big fan of the Test::Unit all tests are based on RSpec. And the onl
 RSpec.configure do |config|
   config.before(:all) do
     path_to_conf = File.dirname(File.expand_path(__FILE__)) + "/redis.conf"
-    $redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
+    RedisOrm.redis_pid = spawn 'redis-server ' + path_to_conf, :out => "/dev/null"
     sleep(0.3) # must be some delay otherwise "Connection refused - Unable to connect to Redis"
     path_to_socket = File.dirname(File.expand_path(__FILE__)) + "/../redis.sock"
-    $redis = Redis.new(:host => 'localhost', :path => path_to_socket)
+    RedisOrm.redis = Redis.new(:host => 'localhost', :path => path_to_socket)
   end
   
   config.before(:each) do
-    $redis.flushall if $redis
+    RedisOrm.redis.flushall if RedisOrm.redis
   end
 
   config.after(:each) do
-   $redis.flushall if $redis
+   RedisOrm.redis.flushall if RedisOrm.redis
   end
 
   config.after(:all) do
-    Process.kill 9, $redis_pid.to_i if $redis_pid
+    Process.kill 9, RedisOrm.redis_pid.to_i if RedisOrm.redis_pid
   end
 end
 ```

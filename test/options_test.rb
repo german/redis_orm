@@ -83,23 +83,23 @@ describe "test options" do
   end
 
   it "should correctly save boolean values" do
-    $redis.hgetall("photo:#{@photo1.id}")["inverted"].should == "true"
-    $redis.hgetall("photo:#{@photo2.id}")["inverted"].should == "false"
+    RedisOrm.redis.hgetall("photo:#{@photo1.id}")["inverted"].should == "true"
+    RedisOrm.redis.hgetall("photo:#{@photo2.id}")["inverted"].should == "false"
 
     @photo1.inverted.should == true 
     @photo2.inverted.should == false
         
-    $redis.zrange("photo:inverted:true", 0, -1).should include(@photo1.id.to_s)
-    $redis.zrange("photo:inverted:false", 0, -1).should include(@photo2.id.to_s)
+    RedisOrm.redis.zrange("photo:inverted:true", 0, -1).should include(@photo1.id.to_s)
+    RedisOrm.redis.zrange("photo:inverted:false", 0, -1).should include(@photo2.id.to_s)
     
-    $redis.hgetall("photo:#{@photo1.id}")["checked"].should == "true"
-    $redis.hgetall("photo:#{@photo2.id}")["checked"].should == "false"
+    RedisOrm.redis.hgetall("photo:#{@photo1.id}")["checked"].should == "true"
+    RedisOrm.redis.hgetall("photo:#{@photo2.id}")["checked"].should == "false"
     
     @photo1.checked.should == true
     @photo2.checked.should == false
     
-    $redis.zrange("photo:checked:true", 0, -1).should include(@photo1.id.to_s)
-    $redis.zrange("photo:checked:false", 0, -1).should include(@photo2.id.to_s)
+    RedisOrm.redis.zrange("photo:checked:true", 0, -1).should include(@photo1.id.to_s)
+    RedisOrm.redis.zrange("photo:checked:false", 0, -1).should include(@photo2.id.to_s)
   end
 
   it "should search on bool values properly" do
