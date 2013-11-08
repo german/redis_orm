@@ -30,7 +30,7 @@ class User < RedisOrm::Base
   after_destroy :after_destroy_callback
 
   def store_in_rating
-    $redis.zadd "users:sorted_by_rating", 0.0, self.id
+    RedisOrm.redis.zadd "users:sorted_by_rating", 0.0, self.id
   end
 
   def after_destroy_callback

@@ -51,9 +51,9 @@ describe "check indices for associations" do
     @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
 
     @comment1.destroy
-    $redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1).size.should == 1
-    $redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1)[0].should == @comment2.id.to_s
-    $redis.zrange("article:#{@article.id}:comments:moderated:false", 0, -1).size.should == 0
+    RedisOrm.redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1).size.should == 1
+    RedisOrm.redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1)[0].should == @comment2.id.to_s
+    RedisOrm.redis.zrange("article:#{@article.id}:comments:moderated:false", 0, -1).size.should == 0
     @article.comments.find(:all, :conditions => {:moderated => true}).size.should == 1
     @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
   end
@@ -90,9 +90,9 @@ describe "check indices for associations" do
     @comment1.destroy
     @article.comments.find(:all, :conditions => {:moderated => true}).size.should == 1
     @article.comments.find(:all, :conditions => {:moderated => false}).size.should == 0
-    $redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1).size.should == 1
-    $redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1)[0].should == @comment2.id.to_s
-    $redis.zrange("article:#{@article.id}:comments:moderated:false", 0, -1).size.should == 0
+    RedisOrm.redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1).size.should == 1
+    RedisOrm.redis.zrange("article:#{@article.id}:comments:moderated:true", 0, -1)[0].should == @comment2.id.to_s
+    RedisOrm.redis.zrange("article:#{@article.id}:comments:moderated:false", 0, -1).size.should == 0
   end
 
   it "should check compound indices for associations" do
@@ -127,7 +127,7 @@ describe "check indices for associations" do
     
     User.count.should == 1
     Note.count.should == 2
-    $redis.zcard("note:owner:1").should == 1    
+    RedisOrm.redis.zcard("note:owner:1").should == 1    
     note.owner.should == user
     Note.find(:all, :conditions => {:owner => user}).should == [note]
     Note.find(:first, :conditions => {:owner => user}).should == note
@@ -135,7 +135,7 @@ describe "check indices for associations" do
     note.owner = nil
     Note.find(:all, :conditions => {:owner => user}).should == []
     Note.find(:first, :conditions => {:owner => user}).should == nil
-    $redis.zcard("note:owner:1").should == 0
+    RedisOrm.redis.zcard("note:owner:1").should == 0
   end
 
   it "should return first model if it exists when conditions contain associated object (belongs_to assoc established when creating object)" do

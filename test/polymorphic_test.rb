@@ -58,8 +58,8 @@ describe "check polymorphic property" do
     
     person.destroy
     Person.count.should == 0
-    $redis.hgetall("user:#{person.id}").should == {}
-    $redis.zrank("user:ids", person.id).should == nil
+    RedisOrm.redis.hgetall("user:#{person.id}").should == {}
+    RedisOrm.redis.zrank("user:ids", person.id).should == nil
     Country.first.people.count.should == 0
   end
 end

@@ -28,21 +28,21 @@ module RedisOrm
               
               old_records.each do |record|
                 if has_many_assoc
-                  $redis.zrem "#{record.model_name}:#{record.id}:#{model_name.pluralize}", id
+                  RedisOrm.redis.zrem "#{record.model_name}:#{record.id}:#{model_name.pluralize}", id
                 elsif has_one_or_belongs_to_assoc
-                  $redis.del "#{record.model_name}:#{record.id}:#{model_name}"
+                  RedisOrm.redis.del "#{record.model_name}:#{record.id}:#{model_name}"
                 end
               end
             end
             
             # clear old assocs from this model side
-            $redis.zremrangebyscore "#{model_name}:#{id}:#{foreign_models}", 0, Time.now.to_f
+            RedisOrm.redis.zremrangebyscore "#{model_name}:#{id}:#{foreign_models}", 0, Time.now.to_f
           end
 
           records.to_a.each do |record|
             # we use here *foreign_models_name* not *record.model_name.pluralize* because of the :as option
             key = "#{model_name}:#{id}:#{foreign_models_name}"
-            $redis.zadd(key, Time.now.to_f, record.id)
+            RedisOrm.redis.zadd(key, Time.now.to_f, record.id)
             set_expire_on_reference_key(key)
             
             record.get_indices.each do |index|
@@ -52,10 +52,10 @@ module RedisOrm
             # article.comments = [comment1, comment2] 
             # iterate through the array of comments and create backlink
             # check whether *record* object has *has_many* declaration and it states *self.model_name* in plural
-            if assoc = class_associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !$redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
+            if assoc = class_associations[record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} #&& !RedisOrm.redis.zrank("#{record.model_name}:#{record.id}:#{model_name.pluralize}", id)#record.model_name.to_s.camelize.constantize.find(id).nil?
               assoc_foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : model_name.pluralize
               key = "#{record.model_name}:#{record.id}:#{assoc_foreign_models_name}"
-              $redis.zadd(key, Time.now.to_f, id) if !$redis.zrank(key, id)
+              RedisOrm.redis.zadd(key, Time.now.to_f, id) if !RedisOrm.redis.zrank(key, id)
               set_expire_on_reference_key(key)
             end
               
@@ -64,7 +64,7 @@ module RedisOrm
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : model_name
               key = "#{record.model_name}:#{record.id}:#{foreign_model_name}"
               # overwrite assoc anyway so we don't need to check record.send(model_name.to_sym).nil? here
-              $redis.set(key, id)              
+              RedisOrm.redis.set(key, id)              
               set_expire_on_reference_key(key)
             end
           end

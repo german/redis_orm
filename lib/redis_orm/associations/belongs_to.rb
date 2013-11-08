@@ -22,17 +22,17 @@ module RedisOrm
         
         define_method foreign_model_name do
           if options[:polymorphic]
-            model_type = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
+            model_type = RedisOrm.redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
             if model_type
-              model_type.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}_id")
+              model_type.to_s.camelize.constantize.find(RedisOrm.redis.get "#{model_name}:#{@id}:#{foreign_model_name}_id")
             end
           else
             # find model even if it's in some module
             full_model_scope = RedisOrm::Base.descendants.detect{|desc| desc.to_s.split('::').include?(foreign_model.to_s.camelize) }
             if full_model_scope
-              full_model_scope.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+              full_model_scope.find(RedisOrm.redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
             else
-              foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+              foreign_model.to_s.camelize.constantize.find(RedisOrm.redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
             end
           end
         end
@@ -47,13 +47,13 @@ module RedisOrm
           full_model_scope = RedisOrm::Base.descendants.detect{|desc| desc.to_s.split('::').include?(foreign_model.to_s.camelize) }
           
           if options[:polymorphic]
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}_type", assoc_with_record.model_name)
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}_id", assoc_with_record.id)
+            RedisOrm.redis.set("#{model_name}:#{id}:#{foreign_model_name}_type", assoc_with_record.model_name)
+            RedisOrm.redis.set("#{model_name}:#{id}:#{foreign_model_name}_id", assoc_with_record.id)
           else
             if assoc_with_record.nil?
-              $redis.del("#{model_name}:#{id}:#{foreign_model_name}")
+              RedisOrm.redis.del("#{model_name}:#{id}:#{foreign_model_name}")
             elsif [foreign_model.to_s, full_model_scope.model_name].include?(assoc_with_record.model_name)
-              $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
+              RedisOrm.redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
             else
               raise TypeMismatchError
             end
@@ -67,9 +67,9 @@ module RedisOrm
               prepared_index.downcase! if index[:options][:case_insensitive]
 
               if index[:options][:unique]
-                $redis.del(prepared_index, id)
+                RedisOrm.redis.del(prepared_index, id)
               else
-                $redis.zrem(prepared_index, id)
+                RedisOrm.redis.zrem(prepared_index, id)
               end
             end
             
@@ -81,21 +81,21 @@ module RedisOrm
             prepared_index.downcase! if index[:options][:case_insensitive]
 
             if index[:options][:unique]
-              $redis.set(prepared_index, id)
+              RedisOrm.redis.set(prepared_index, id)
             else
-              $redis.zadd(prepared_index, Time.now.to_f, id)
+              RedisOrm.redis.zadd(prepared_index, Time.now.to_f, id)
             end
           end
           
           # we should have an option to delete created earlier associasion (like 'node.owner = nil')
           if assoc_with_record.nil?
             # remove old assoc            
-            $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
+            RedisOrm.redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
           else
             # check whether *assoc_with_record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
+            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !RedisOrm.redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
               # remove old assoc
-              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
+              RedisOrm.redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
               assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
 
             # check whether *assoc_with_record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)

@@ -15,9 +15,9 @@ module RedisOrm
         prepared_index.downcase! if index[:options][:case_insensitive]
 
         if index[:options][:unique]
-          $redis.set(prepared_index, record.id)
+          RedisOrm.redis.set(prepared_index, record.id)
         else
-          $redis.zadd(prepared_index, Time.now.to_f, record.id)
+          RedisOrm.redis.zadd(prepared_index, Time.now.to_f, record.id)
         end
       end
     end

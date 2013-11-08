@@ -1,6 +1,23 @@
-require 'spec_helper'
-
 require 'rails/generators/redis_orm/model/model_generator'
+# require '/spec/spec_helper'
+require 'rails/all'
+require 'rspec'
+require 'rspec/autorun'
+
+$: << File.dirname(File.expand_path(__FILE__)) + '/../lib/'
+
+module RedisOrmRails
+  class Application < ::Rails::Application
+  end
+end
+
+require 'rspec/rails'
+require 'ammeter/init'
+
+RSpec.configure do |config|  
+  config.mock_with :rspec
+end
+
 
 describe RedisOrm::Generators::ModelGenerator do
   destination File.expand_path(File.join(File.dirname(__FILE__), 

@@ -17,7 +17,7 @@ module RedisOrm
       end
       
       def fetch
-        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore __key__, Time.now.to_f, 0)
+        @records = @foreign_models.to_s.singularize.camelize.constantize.find(RedisOrm.redis.zrevrangebyscore __key__, Time.now.to_f, 0)
         @fetched = true
       end
 
@@ -35,7 +35,7 @@ module RedisOrm
       # user.avatars << Avatar.find(23) => user:1:avatars => [23]
       def <<(new_records)
         new_records.to_a.each do |record|
-          $redis.zadd(__key__, Time.now.to_f, record.id)
+          RedisOrm.redis.zadd(__key__, Time.now.to_f, record.id)
           
           receiver_instance.set_expire_on_reference_key(__key__)
           
@@ -58,8 +58,8 @@ module RedisOrm
 
               reference_key = "#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}"
               
-              if !$redis.zrank(reference_key, @reciever_id)
-                $redis.zadd(reference_key, Time.now.to_f, @reciever_id)
+              if !RedisOrm.redis.zrank(reference_key, @reciever_id)
+                RedisOrm.redis.zadd(reference_key, Time.now.to_f, @reciever_id)
                 receiver_instance.set_expire_on_reference_key(reference_key)
               end
             # check whether *record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *record*'s side (in order not to provoke recursion)
@@ -71,7 +71,7 @@ module RedisOrm
               end
               if record.send(reciever_model_name).nil?
                 key = "#{record.model_name}:#{record.id}:#{reciever_model_name}"
-                $redis.set(key, @reciever_id)
+                RedisOrm.redis.set(key, @reciever_id)
                 receiver_instance.set_expire_on_reference_key(key)
               end
             end
@@ -107,13 +107,13 @@ module RedisOrm
           # to DRY things up I use here check for index but *else* branch also imply that the index might have be used
           # since *prepared_index* vary whether options[:conditions] are present or not
           if index && index[:options][:unique]
-            id = $redis.get prepared_index
+            id = RedisOrm.redis.get prepared_index
             @records << @foreign_models.to_s.singularize.camelize.constantize.find(id)
           else
             ids = if options[:order].to_s == 'desc'
-              $redis.zrevrangebyscore(prepared_index, Time.now.to_f, 0, :limit => limit)
+              RedisOrm.redis.zrevrangebyscore(prepared_index, Time.now.to_f, 0, :limit => limit)
             else
-              $redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => limit)
+              RedisOrm.redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => limit)
             end
             @records += @foreign_models.to_s.singularize.camelize.constantize.find(ids)
           end
@@ -127,7 +127,7 @@ module RedisOrm
 
       def find(token = nil, options = {})
         if token.is_a?(String) || token.is_a?(Integer)
-          record_id = $redis.zrank(__key__, token.to_i)
+          record_id = RedisOrm.redis.zrank(__key__, token.to_i)
           if record_id
             @fetched = true
             @records = @foreign_models.to_s.singularize.camelize.constantize.find(token)
@@ -145,11 +145,11 @@ module RedisOrm
       end
 
       def delete(id)
-        $redis.zrem(__key__, id.to_i)
+        RedisOrm.redis.zrem(__key__, id.to_i)
       end
 
       def count
-        $redis.zcard __key__
+        RedisOrm.redis.zcard __key__
       end
 
       def method_missing(method_name, *args, &block)
