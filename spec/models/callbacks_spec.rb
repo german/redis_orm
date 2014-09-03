@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'test_helper.rb'
 
 describe "check callbacks" do
   it "should fire after_create/after_destroy callbacks" do

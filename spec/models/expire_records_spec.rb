@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper.rb'
 
 describe "expire record after specified time" do
   it "should create a record and then delete if *expire* method is specified in appropriate class" do

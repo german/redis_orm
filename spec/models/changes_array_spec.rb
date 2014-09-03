@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper.rb'
 
 describe "check associations" do
   it "should return correct _changes array" do

@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper.rb'
 
 describe "check indices" do
   it "should change index accordingly to the changes in the model" do

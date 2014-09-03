@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper.rb'
 
 describe "check polymorphic property" do
   it "should provide proper associations and save records correctly for has_one/belongs_to polymorphic" do

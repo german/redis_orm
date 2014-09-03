@@ -1,5 +1,4 @@
 require 'spec_helper'
-
 require 'rails/generators/redis_orm/model/model_generator'
 
 describe RedisOrm::Generators::ModelGenerator do
