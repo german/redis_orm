@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper'
 
 describe "check atomicity" do
   it "should properly increment property's value" do

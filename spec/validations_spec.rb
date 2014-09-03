@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper'
 
 describe "check associations" do
   it "should validate presence if image in photo" do

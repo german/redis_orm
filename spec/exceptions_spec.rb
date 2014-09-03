@@ -1,4 +1,4 @@
-require File.dirname(File.expand_path(__FILE__)) + '/test_helper.rb'
+require 'spec_helper'
 
 describe "exceptions test" do
   it "should raise an exception if association is provided with improper class" do
