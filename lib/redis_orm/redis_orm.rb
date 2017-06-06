@@ -9,7 +9,7 @@ require 'active_support/core_ext/string/inflections'
 require 'active_support/core_ext/time/acts_like'
 require 'active_support/core_ext/time/calculations'
 require 'active_support/core_ext/time/conversions'
-require 'active_support/core_ext/time/marshal'
+#require 'active_support/core_ext/time/marshal'
 require 'active_support/core_ext/time/zones'
 
 require 'active_support/core_ext/numeric'
@@ -133,7 +133,7 @@ module RedisOrm
       end
       
       def expire(seconds, options = {})
-        @@expire[model_name] = {:seconds => seconds, :options => options}
+        @@expire[model_name] = {seconds: seconds, options: options}
       end
 
       def use_uuid_as_id
@@ -223,7 +223,7 @@ module RedisOrm
             end
           end
 
-          index = find_indices(properties, :first => true)
+          index = find_indices(properties, {first: true})
           
           raise NotIndexFound if !index
 

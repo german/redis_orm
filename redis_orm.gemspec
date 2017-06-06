@@ -30,7 +30,7 @@ Gem::Specification.new do |s|
       s.add_development_dependency(%q<rspec>, [">= 2.5.0"])
       s.add_development_dependency(%q<rspec-rails>, [">= 2.5.0"])
       s.add_development_dependency(%q<ammeter>)
-      s.add_development_dependency(%q<rails>, ["~> 3.0"])
+      s.add_development_dependency(%q<rails>, [">= 4.2"])
     else
       s.add_dependency(%q<activesupport>, ["~> 3.0"])
       s.add_dependency(%q<activemodel>, ["~> 3.0"])
