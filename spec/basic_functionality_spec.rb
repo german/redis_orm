@@ -1,4 +1,4 @@
-require 'spec_helper'
+require_relative './spec_helper'
 
 describe "check basic functionality" do
   it "should have 3 models in descendants" do

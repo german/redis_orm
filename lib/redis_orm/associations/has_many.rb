@@ -22,9 +22,13 @@ module RedisOrm
             old_records = self.send(foreign_models).to_a
             if !old_records.empty?
               # cache here which association with current model have old record's model
-              has_many_assoc = old_records[0].get_associations.detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
+              has_many_assoc = old_records[0].get_associations.detect do |h|
+                h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym
+              end
               
-              has_one_or_belongs_to_assoc = old_records[0].get_associations.detect{|h| [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym}
+              has_one_or_belongs_to_assoc = old_records[0].get_associations.detect do |h|
+                [:has_one, :belongs_to].include?(h[:type]) && h[:foreign_model] == model_name.to_sym
+              end
               
               old_records.each do |record|
                 if has_many_assoc
