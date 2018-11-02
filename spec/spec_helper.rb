@@ -1,6 +1,6 @@
 require 'rails/all'
 require 'rspec'
-require 'redis_orm'
+require_relative '../lib/redis_orm'
 
 $: << File.dirname(File.expand_path(__FILE__)) + '/../lib/'
 
