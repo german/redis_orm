@@ -4,7 +4,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 1.2") if s.respond_to? :required_rubygems_version=
   s.authors = ["Dmitrii Samoilov"]
-  s.date = "2018-10-25"
+  s.date = "2021-02-07"
   s.description = "ORM for Redis (advanced key-value storage) with ActiveRecord API"
   s.email = "germaninthetown@gmail.com"
   s.extra_rdoc_files = ["CHANGELOG", "LICENSE", "README.md", "TODO", "lib/rails/generators/redis_orm/model/model_generator.rb", "lib/rails/generators/redis_orm/model/templates/model.rb.erb", "lib/redis_orm.rb", "lib/redis_orm/active_model_behavior.rb", "lib/redis_orm/associations/belongs_to.rb", "lib/redis_orm/associations/has_many.rb", "lib/redis_orm/associations/has_many_helper.rb", "lib/redis_orm/associations/has_many_proxy.rb", "lib/redis_orm/associations/has_one.rb", "lib/redis_orm/redis_orm.rb", "lib/redis_orm/utils.rb"]
@@ -21,25 +21,25 @@ Gem::Specification.new do |s|
     s.specification_version = 3
 
     if Gem::Version.new(Gem::VERSION) >= Gem::Version.new('1.2.0') then
-      s.add_runtime_dependency(%q<activesupport>, [">= 4.2"])
-      s.add_runtime_dependency(%q<activemodel>, [">= 4.2"])
-      s.add_runtime_dependency(%q<redis>, [">= 3.2"])
+      s.add_runtime_dependency(%q<activesupport>, [">= 5.1"])
+      s.add_runtime_dependency(%q<activemodel>, [">= 5.1"])
+      s.add_runtime_dependency(%q<redis>, [">= 4.2.5"])
       s.add_runtime_dependency(%q<uuid>, [">= 2.3.2"])
-      s.add_development_dependency(%q<rspec>, [">= 3.8"])
+      s.add_development_dependency(%q<rspec>, [">= 3.10"])
       s.add_development_dependency(%q<rspec-rails>, [">= 3.0"])
       s.add_development_dependency(%q<ammeter>)
     else
-      s.add_dependency(%q<activesupport>, [">= 4.2"])
-      s.add_dependency(%q<activemodel>, [">= 4.2"])
-      s.add_dependency(%q<redis>, [">= 3.2"])
+      s.add_dependency(%q<activesupport>, [">= 5.1"])
+      s.add_dependency(%q<activemodel>, [">= 5.1"])
+      s.add_dependency(%q<redis>, [">= 4.2.5"])
       s.add_dependency(%q<uuid>, [">= 2.3.2"])
-      s.add_dependency(%q<rspec>, [">= 3.8"])
+      s.add_dependency(%q<rspec>, [">= 3.10"])
     end
   else
-    s.add_dependency(%q<activesupport>, [">= 4.2"])
-    s.add_dependency(%q<activemodel>, [">= 4.2"])
-    s.add_dependency(%q<redis>, [">= 3.2"])
+    s.add_dependency(%q<activesupport>, [">= 5.1"])
+    s.add_dependency(%q<activemodel>, [">= 5.1"])
+    s.add_dependency(%q<redis>, [">= 4.2.5"])
     s.add_dependency(%q<uuid>, [">= 2.3.2"])
-    s.add_dependency(%q<rspec>, [">= 3.8"])
+    s.add_dependency(%q<rspec>, [">= 3.10"])
   end
 end
