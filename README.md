@@ -46,7 +46,7 @@ bundle install
 To run the tests you should have redis installed already. Please check [Redis download/installation page](http://redis.io/download).
 
 ```sh
-rake test
+rspec
 ```
 
 ## Setting up a connection to the redis server
