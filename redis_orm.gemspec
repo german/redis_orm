@@ -1,8 +1,6 @@
 Gem::Specification.new do |s|
   s.name = "redis_orm"
   s.version = "1.0"
-
-  s.required_rubygems_version = Gem::Requirement.new(">= 1.2") if s.respond_to? :required_rubygems_version=
   s.authors = ["Dmitrii Samoilov"]
   s.date = "2021-02-07"
   s.description = "ORM for Redis (advanced key-value storage) with ActiveRecord API"
@@ -17,29 +15,11 @@ Gem::Specification.new do |s|
   s.summary = "ORM for Redis (advanced key-value storage) with ActiveRecord API"
   s.test_files = ["test/association_indices_test.rb", "test/associations_test.rb", "test/atomicity_test.rb", "test/basic_functionality_test.rb", "test/callbacks_test.rb", "test/changes_array_test.rb", "test/dynamic_finders_test.rb", "test/exceptions_test.rb", "test/expire_records_test.rb", "test/has_one_has_many_test.rb", "test/indices_test.rb", "test/options_test.rb", "test/polymorphic_test.rb", "test/sortable_test.rb", "test/test_helper.rb", "test/uuid_as_id_test.rb", "test/validations_test.rb"]
 
-  if s.respond_to? :specification_version then
-    s.specification_version = 3
-
-    if Gem::Version.new(Gem::VERSION) >= Gem::Version.new('1.2.0') then
-      s.add_runtime_dependency(%q<activesupport>, [">= 5.1"])
-      s.add_runtime_dependency(%q<activemodel>, [">= 5.1"])
-      s.add_runtime_dependency(%q<redis>, [">= 4.2.5"])
-      s.add_runtime_dependency(%q<uuid>, [">= 2.3.2"])
-      s.add_development_dependency(%q<rspec>, [">= 3.10"])
-      s.add_development_dependency(%q<rspec-rails>, [">= 3.0"])
-      s.add_development_dependency(%q<ammeter>)
-    else
-      s.add_dependency(%q<activesupport>, [">= 5.1"])
-      s.add_dependency(%q<activemodel>, [">= 5.1"])
-      s.add_dependency(%q<redis>, [">= 4.2.5"])
-      s.add_dependency(%q<uuid>, [">= 2.3.2"])
-      s.add_dependency(%q<rspec>, [">= 3.10"])
-    end
-  else
-    s.add_dependency(%q<activesupport>, [">= 5.1"])
-    s.add_dependency(%q<activemodel>, [">= 5.1"])
-    s.add_dependency(%q<redis>, [">= 4.2.5"])
-    s.add_dependency(%q<uuid>, [">= 2.3.2"])
-    s.add_dependency(%q<rspec>, [">= 3.10"])
-  end
+  s.add_runtime_dependency(%q<activesupport>, [">= 5.1"])
+  s.add_runtime_dependency(%q<activemodel>, [">= 5.1"])
+  s.add_runtime_dependency(%q<redis>, [">= 4.2.5"])
+  s.add_runtime_dependency(%q<uuid>, [">= 2.3.2"])
+  s.add_development_dependency(%q<rspec>, [">= 3.10"])
+  s.add_development_dependency(%q<rspec-rails>, [">= 3.0"])
+  s.add_development_dependency(%q<ammeter>)
 end
