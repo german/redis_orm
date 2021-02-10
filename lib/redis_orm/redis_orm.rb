@@ -35,6 +35,15 @@ module RedisOrm
   class ArgumentsMismatch < StandardError
   end
   
+  class Index
+    attr_accessor :name, :options
+
+    def initialize(name, options)
+      @name = name
+      @options = options
+    end
+  end
+
   class Base
     include ActiveModel::Validations
     include ActiveModelBehavior
@@ -48,8 +57,8 @@ module RedisOrm
     attr_accessor :persisted
 
     @@properties = Hash.new{|h,k| h[k] = []}
-    @@indices = Hash.new{|h,k| h[k] = []} # compound indices are available too
-    @@associations = Hash.new{|h,k| h[k] = []}
+    @@indices = Hash.new{|h,model_name| h[model_name] = []} # compound indices are available too
+    @@associations = Hash.new{|h,model_name| h[model_name] = []}
     @@callbacks = Hash.new{|h,k| h[k] = {}}
     @@use_uuid_as_id = {}
     @@descendants = []
@@ -73,7 +82,7 @@ module RedisOrm
       #   *unique* Boolean
       #   *case_insensitive* Boolean
       def index(name, options = {})
-        @@indices[model_name] << {:name => name, :options => options}
+        @@indices[model_name] << Index.new(name, options)
       end
 
       def property(property_name, class_name, options = {})
@@ -163,14 +172,14 @@ module RedisOrm
       
       def find_indices(properties, options = {})
         properties.map!{|p| p.to_sym}
-        method = options[:first] ? :detect : :select
+        method_name = options[:first] ? :detect : :select
         
-        @@indices[model_name].send(method) do |models_index|
-          if models_index[:name].is_a?(Array) && models_index[:name].size == properties.size
+        @@indices[model_name].public_send(method_name) do |index|
+          if index.name.is_a?(Array) && index.name.size == properties.size
             # check the elements not taking into account their order
-            (models_index[:name] & properties).size == properties.size
-          elsif !models_index[:name].is_a?(Array) && properties.size == 1
-            models_index[:name] == properties[0]
+            (index.name & properties).size == properties.size
+          elsif !index.name.is_a?(Array) && properties.size == 1
+            index.name == properties[0]
           end
         end
       end
@@ -178,18 +187,19 @@ module RedisOrm
       def construct_prepared_index(index, conditions_hash)
         prepared_index = model_name.to_s
        
-        # in order not to depend on order of keys in *:conditions* hash we rather interate over the index itself and find corresponding values in *:conditions* hash
-        if index[:name].is_a?(Array)
-          index[:name].each do |key|
+        # in order not to depend on order of keys in *:conditions* hash we rather interate over
+        # the index itself and find corresponding values in *:conditions* hash
+        if index.name.is_a?(Array)
+          index.name.each do |key|
             # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
             raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym}
             prepared_index += ":#{key}:#{conditions_hash[key]}"
           end
         else
-          prepared_index += ":#{index[:name]}:#{conditions_hash[index[:name]]}"
+          prepared_index += ":#{index.name}:#{conditions_hash[index.name]}"
         end
               
-        prepared_index.downcase! if index[:options][:case_insensitive]
+        prepared_index.downcase! if index.options[:case_insensitive]
         
         prepared_index
       end
@@ -285,7 +295,7 @@ module RedisOrm
             $redis.lrange(ids_key, *limit).compact.collect{|id| find(id.split(':').last)}
           end
         else
-          if index && index[:options][:unique]
+          if index && index.options[:unique]
             id = $redis.get prepared_index
             model_name.to_s.camelize.constantize.find(id)
           else
@@ -401,7 +411,7 @@ module RedisOrm
           prepared_index = construct_prepared_index(index, properties_hash)
 
           if method_name =~ /^find_by_(\w*)/
-            id = if index[:options][:unique]            
+            id = if index.options[:unique]            
               $redis.get prepared_index
             else
               $redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => [0, 1])[0]
@@ -410,7 +420,7 @@ module RedisOrm
           elsif method_name =~ /^find_all_by_(\w*)/
             records = []          
 
-            if index[:options][:unique]            
+            if index.options[:unique]            
               id = $redis.get prepared_index
               records << model_name.to_s.camelize.constantize.find(id)
             else
@@ -657,14 +667,14 @@ module RedisOrm
             
             if !self.send(foreign_model_name).nil?
               @@indices[model_name].each do |index|
-                keys_to_delete = if index[:name].is_a?(Array)
-                  full_index = index[:name].inject([]){|sum, index_part| sum << index_part}.join(':')
-                  $redis.keys "#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
+                keys_to_delete = if index.name.is_a?(Array)
+                  full_index = index.name.inject([]){|sum, index_part| sum << index_part}.join(':')
+                  $redis.keys "#{foreign_model_name}:#{self.public_send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
                 else
-                  ["#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{index[:name]}:#{self.send(index[:name])}"]
+                  ["#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{index.name}:#{self.public_send(index.name)}"]
                 end
                 keys_to_delete.each do |key| 
-                  index[:options][:unique] ? $redis.del(key) : $redis.zrem(key, @id)
+                  index.options[:unique] ? $redis.del(key) : $redis.zrem(key, @id)
                 end
               end
             end
@@ -744,7 +754,7 @@ module RedisOrm
       @@indices[model_name].each do |index|
         prepared_index = _construct_prepared_index(index) # instance method not class one!
 
-        if index[:options][:unique]
+        if index.options[:unique]
           $redis.del(prepared_index)
         else
           $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
@@ -760,17 +770,16 @@ module RedisOrm
     
   protected
     def _construct_prepared_index(index)
-      prepared_index = if index[:name].is_a?(Array) # TODO sort alphabetically
-        index[:name].inject([model_name]) do |sum, index_part|
+      index_name = if index.name.is_a?(Array) # TODO sort alphabetically
+        index.name.inject([model_name]) do |sum, index_part|
           sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
         end.join(':')          
       else
-        [model_name, index[:name], self.instance_variable_get(:"@#{index[:name]}")].join(':')
+        [model_name, index.name, self.instance_variable_get(:"@#{index.name}")].join(':')
       end
       
-      prepared_index.downcase! if index[:options][:case_insensitive]
-      
-      prepared_index
+      index_name.downcase! if index.options[:case_insensitive]
+      index_name
     end
 
     def _check_mismatched_types_for_values
@@ -809,16 +818,16 @@ module RedisOrm
           end
         end
 
-        indices = @@indices[model_name].inject([]) do |sum, models_index|
-          if models_index[:name].is_a?(Array)
-            if models_index[:name].include?(prop[:name])
-              sum << models_index
+        indices = @@indices[model_name].inject([]) do |sum, index|
+          if index.name.is_a?(Array)
+            if index.name.include?(prop[:name])
+              sum << index
             else
               sum
             end
           else
-            if models_index[:name] == prop[:name]
-              sum << models_index
+            if index.name == prop[:name]
+              sum << index
             else
               sum
             end
@@ -827,8 +836,8 @@ module RedisOrm
 
         if !indices.empty?
           indices.each do |index|
-            if index[:name].is_a?(Array)
-              keys_to_delete = if index[:name].index(prop) == 0
+            if index.name.is_a?(Array)
+              keys_to_delete = if index.name.index(prop) == 0
                 $redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
               else
                 $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
@@ -846,21 +855,21 @@ module RedisOrm
                 if :belongs_to == assoc[:type]
                   # if association has :as option use it, otherwise use standard :foreign_model
                   foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
-                  if !self.send(foreign_model_name).nil?
-                    if index[:name].is_a?(Array)
-                      keys_to_delete = if index[:name].index(prop) == 0
-                        $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
+                  if !self.public_send(foreign_model_name).nil?
+                    if index.name.is_a?(Array)
+                      keys_to_delete = if index.name.index(prop) == 0
+                        $redis.keys "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
                       else
-                        $redis.keys "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
+                        $redis.keys "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
                       end
 
                       keys_to_delete.each{|key| $redis.del(key)}
                     else
-                      beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
+                      beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
 
                       $redis.del(beginning_of_the_key + prev_prop_value.to_s)
 
-                      index[:options][:unique] ? $redis.set((beginning_of_the_key + prop_value.to_s), @id) : $redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
+                      index.options[:unique] ? $redis.set((beginning_of_the_key + prop_value.to_s), @id) : $redis.zadd((beginning_of_the_key + prop_value.to_s), Time.now.to_f, @id)
                     end
                   end
                 end
@@ -951,10 +960,10 @@ module RedisOrm
     def _save_new_indices
       # save new indices (not *reference* onces (for example not these *belongs_to :note, :index => true*)) in order to sort by finders
       # city:name:Chicago => 1
-      @@indices[model_name].reject{|index| index[:options][:reference]}.each do |index|
+      @@indices[model_name].reject{|index| index.options[:reference]}.each do |index|
         prepared_index = _construct_prepared_index(index) # instance method not class one!
 
-        if index[:options][:unique]
+        if index.options[:unique]
           $redis.set(prepared_index, @id)
         else
           $redis.zadd(prepared_index, Time.now.to_f, @id)

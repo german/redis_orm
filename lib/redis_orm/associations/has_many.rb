@@ -50,7 +50,9 @@ module RedisOrm
             set_expire_on_reference_key(key)
             
             record.get_indices.each do |index|
-              save_index_for_associated_record(index, record, [model_name, id, record.model_name.pluralize]) # record.model_name.pluralize => foreign_models_name
+              # record.model_name.pluralize => foreign_models_name
+              # TODO record.save_index
+              save_index_for_associated_record(index, record, [model_name, id, record.model_name.pluralize])
             end
 
             # article.comments = [comment1, comment2] 

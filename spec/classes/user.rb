@@ -2,15 +2,15 @@ class User < RedisOrm::Base
   property :name, String   
   property :first_name, String
   property :last_name, String
-  property :karma, Integer, :default => 1000
+  property :karma, Integer, default: 1000
   property :age, Integer
   property :wage, Float
   property :male, RedisOrm::Boolean
   property :created_at, Time
   property :modified_at, Time
-  property :gender, RedisOrm::Boolean, :default => true
-  property :moderator, RedisOrm::Boolean, :default => false
-  property :moderated_area, String, :default => "messages"
+  property :gender, RedisOrm::Boolean, default: true
+  property :moderator, RedisOrm::Boolean, default: false
+  property :moderated_area, String, default: "messages"
   
   index :moderator
   index [:moderator, :moderated_area]
@@ -20,10 +20,10 @@ class User < RedisOrm::Base
   index :last_name
   index [:first_name, :last_name]
 
-  has_one :profile, :index => true
+  has_one :profile, index: true
   has_many :comments
-  has_many :users, :as => :friends
-  has_one :photo, :dependent => :destroy
+  has_many :users, as: :friends
+  has_one :photo, dependent: :destroy
   has_many :notes
   
   after_create :store_in_rating

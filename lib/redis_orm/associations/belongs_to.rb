@@ -12,12 +12,18 @@ module RedisOrm
       # avatar.user => avatar:234:user => 1 => User.find(1)
       def belongs_to(foreign_model, options = {})
         class_associations = class_variable_get(:"@@associations")
-        class_variable_get(:"@@associations")[model_name] << {:type => :belongs_to, :foreign_model => foreign_model, :options => options}
+        belongs_to_hash = {
+          type: :belongs_to,
+          foreign_model: foreign_model,
+          options: options
+        }
+        class_variable_get(:"@@associations")[model_name] << belongs_to_hash
 
         foreign_model_name = options[:as] ? options[:as].to_sym : foreign_model.to_sym
         
         if options[:index]
-          class_variable_get(:"@@indices")[model_name] << {:name => foreign_model_name, :options => {:reference => true}}
+          index = Index.new(foreign_model_name, {reference: true})
+          class_variable_get(:"@@indices")[model_name] << index
         end
         
         define_method foreign_model_name do
@@ -44,7 +50,9 @@ module RedisOrm
           old_assoc = self.send(foreign_model_name)
 
           # find model even if it's in some module
-          full_model_scope = RedisOrm::Base.descendants.detect{|desc| desc.to_s.split('::').include?(foreign_model.to_s.camelize) }
+          full_model_scope = RedisOrm::Base.descendants.detect do |desc|
+            desc.to_s.split('::').include?(foreign_model.to_s.camelize)
+          end
           
           if options[:polymorphic]
             $redis.set("#{model_name}:#{id}:#{foreign_model_name}_type", assoc_with_record.model_name)
@@ -60,13 +68,13 @@ module RedisOrm
           end
 
           # handle indices for references
-          self.get_indices.select{|index| index[:options][:reference]}.each do |index|
+          self.get_indices.select{|index| index.options[:reference]}.each do |index|
             # delete old reference that points to the old associated record
             if !old_assoc.nil?
-              prepared_index = [self.model_name, index[:name], old_assoc.id].join(':')
-              prepared_index.downcase! if index[:options][:case_insensitive]
+              prepared_index = [self.model_name, index.name, old_assoc.id].join(':')
+              prepared_index.downcase! if index.options[:case_insensitive]
 
-              if index[:options][:unique]
+              if index.options[:unique]
                 $redis.del(prepared_index, id)
               else
                 $redis.zrem(prepared_index, id)
@@ -76,11 +84,11 @@ module RedisOrm
             # if new associated record is nil then skip to next index (since old associated record was already unreferenced)
             next if assoc_with_record.nil?
             
-            prepared_index = [self.model_name, index[:name], assoc_with_record.id].join(':')
+            prepared_index = [self.model_name, index.name, assoc_with_record.id].join(':')
 
-            prepared_index.downcase! if index[:options][:case_insensitive]
+            prepared_index.downcase! if index.options[:case_insensitive]
 
-            if index[:options][:unique]
+            if index.options[:unique]
               $redis.set(prepared_index, id)
             else
               $redis.zadd(prepared_index, Time.now.to_f, id)
@@ -92,7 +100,10 @@ module RedisOrm
             # remove old assoc            
             $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
           else
-            # check whether *assoc_with_record* object has *has_many* declaration and TODO it states *self.model_name* in plural and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
+            # check whether *assoc_with_record* object has *has_many* declaration and
+            # TODO it states *self.model_name* in plural 
+            # and there is no record yet from the *assoc_with_record*'s side 
+            # (in order not to provoke recursion)
             if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
               # remove old assoc
               $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc

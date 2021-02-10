@@ -16,7 +16,8 @@ module RedisOrm
         end
 
         if options[:index]
-          class_variable_get(:"@@indices")[model_name] << {:name => foreign_model_name, :options => {:reference => true}}
+          index = Index.new(foreign_model_name, {reference: true})
+          class_variable_get(:"@@indices")[model_name] << index
         end
         
         define_method foreign_model_name do
@@ -40,13 +41,13 @@ module RedisOrm
           end
           
           # handle indices for references
-          self.get_indices.select{|index| index[:options][:reference]}.each do |index|
+          self.get_indices.select{|index| index.options[:reference]}.each do |index|
             # delete old reference that points to the old associated record
             if !old_assoc.nil?
-              prepared_index = [self.model_name, index[:name], old_assoc.id].join(':')
-              prepared_index.downcase! if index[:options][:case_insensitive]
+              prepared_index = [self.model_name, index.name, old_assoc.id].join(':')
+              prepared_index.downcase! if index.options[:case_insensitive]
 
-              if index[:options][:unique]
+              if index.options[:unique]
                 $redis.del(prepared_index, id)
               else
                 $redis.zrem(prepared_index, id)
@@ -56,11 +57,11 @@ module RedisOrm
             # if new associated record is nil then skip to next index (since old associated record was already unreferenced)
             next if assoc_with_record.nil?
             
-            prepared_index = [self.model_name, index[:name], assoc_with_record.id].join(':')
+            prepared_index = [self.model_name, index.name, assoc_with_record.id].join(':')
 
-            prepared_index.downcase! if index[:options][:case_insensitive]
+            prepared_index.downcase! if index.options[:case_insensitive]
 
-            if index[:options][:unique]
+            if index.options[:unique]
               $redis.set(prepared_index, id)
             else
               $redis.zadd(prepared_index, Time.now.to_f, id)

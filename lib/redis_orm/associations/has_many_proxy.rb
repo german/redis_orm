@@ -69,7 +69,7 @@ module RedisOrm
               else
                 @reciever_model_name
               end
-              if record.send(reciever_model_name).nil?
+              if record.public_send(reciever_model_name).nil?
                 key = "#{record.model_name}:#{record.id}:#{reciever_model_name}"
                 $redis.set(key, @reciever_id)
                 receiver_instance.set_expire_on_reference_key(key)
@@ -106,7 +106,7 @@ module RedisOrm
 
           # to DRY things up I use here check for index but *else* branch also imply that the index might have be used
           # since *prepared_index* vary whether options[:conditions] are present or not
-          if index && index[:options][:unique]
+          if index && index.options[:unique]
             id = $redis.get prepared_index
             @records << @foreign_models.to_s.singularize.camelize.constantize.find(id)
           else
@@ -169,17 +169,17 @@ module RedisOrm
           prepared_index = [@reciever_model_name, @reciever_id, @foreign_models].join(':')
           
           # in order not to depend on order of keys in *:conditions* hash we rather interate over the index itself and find corresponding values in *:conditions* hash
-          if index[:name].is_a?(Array)
-            index[:name].each do |key|
+          if index.name.is_a?(Array)
+            index.name.each do |key|
               # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
               #raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym} # TODO
               prepared_index += ":#{key}:#{conditions_hash[key]}"
             end
           else
-            prepared_index += ":#{index[:name]}:#{conditions_hash[index[:name]]}"
+            prepared_index += ":#{index.name}:#{conditions_hash[index.name]}"
           end
 
-          prepared_index.downcase! if index[:options][:case_insensitive]
+          prepared_index.downcase! if index.options[:case_insensitive]
 
           prepared_index
         end

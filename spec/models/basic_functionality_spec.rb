@@ -178,7 +178,7 @@ describe "check basic functionality" do
     }.to change(ArticleWithComments, :count).by(1)
     
     saved_article = ArticleWithComments.last
-    saved_article.rates.should == {1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0}
+    saved_article.rates.should == {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
   end
   
   it "should store hash in the property correctly" do

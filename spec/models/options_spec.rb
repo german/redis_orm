@@ -29,24 +29,22 @@ describe "test options" do
     Album.find(:first).should == @album
     Album.find!(:first).should == @album
     
-    Album.find(:all, :limit => 1).size.should == 1
-    Album.find!(:all, :limit => 1).size.should == 1
+    Album.find(:all, limit: 1).size.should == 1
+    Album.find!(:all, limit: 1).size.should == 1
   end
 
   it "should return correct array when :limit and :offset options are provided" do
     @album.photos.count.should == 0
-
-    @album.photos.all(:limit => 2, :offset => 0).should == []
+    @album.photos.all(limit: 2, offset: 0).should == []
 
     @album.photos << [@photo1, @photo2]
+    @album.photos.all(limit: 0, offset: 0).should == []
+    @album.photos.all(limit: 1, offset: 0).size.should == 1
+    @album.photos.all(limit: 2, offset: 0).size.should == 2 #[@photo1, @photo2]
 
-    @album.photos.all(:limit => 0, :offset => 0).should == []
-    @album.photos.all(:limit => 1, :offset => 0).size.should == 1
-    @album.photos.all(:limit => 2, :offset => 0).size.should == 2 #[@photo1, @photo2]
-
-    @album.photos.all(:limit => 0, :offset => 0).should == []
-    @album.photos.all(:limit => 1, :offset => 1).size.should == 1 # [@photo2]
-    @album.photos.all(:limit => 2, :offset => 2).should == []
+    @album.photos.all(limit: 0, offset: 0).should == []
+    @album.photos.all(limit: 1, offset: 1).size.should == 1 # [@photo2]
+    @album.photos.all(limit: 2, offset: 2).should == []
 
     @album.photos.find(:all, :limit => 1, :offset => 1).size.should == 1
     
