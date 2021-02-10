@@ -19,6 +19,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency(%q<redis>, ["~> 4.2.5"])
   s.add_runtime_dependency(%q<uuid>, ["~> 2.3.2"])
   s.add_development_dependency(%q<rspec>, ["~> 3.10"])
-  s.add_development_dependency(%q<rspec-rails>, ["~> 3"])
+  s.add_development_dependency(%q<rspec-rails>, ["~> 4"])
   s.add_development_dependency(%q<ammeter>, ["~> 1.1"])
 end
