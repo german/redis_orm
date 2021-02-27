@@ -2,24 +2,24 @@ require 'spec_helper.rb'
 
 describe "check associations" do
   it "should return correct _changes array" do
-    user = User.new :name => "german"
-    user.name_changed?.should == false
+    user = User.new name: "german"
+    expect(user.name_changed?).to be_falsey
     
-    user.name_changes.should == ["german"]
+    expect(user.name_changes).to eq(["german"])
     user.save
     
-    user.name_changes.should == ["german"]
+    expect(user.name_changes).to eq(["german"])
     user.name = "germaninthetown"
-    user.name_changes.should == ["german", "germaninthetown"]
-    user.name_changed?.should == true
+    expect(user.name_changes).to eq(["german", "germaninthetown"])
+    expect(user.name_changed?).to be_truthy
     user.save
 
     user = User.first
-    user.name.should == "germaninthetown"
-    user.name_changed?.should == false
-    user.name_changes.should == ["germaninthetown"]
+    expect(user.name).to eq("germaninthetown")
+    expect(user.name_changed?).to be_falsey
+    expect(user.name_changes).to eq(["germaninthetown"])
     user.name = "german"
-    user.name_changed?.should == true
-    user.name_changes.should == ["germaninthetown", "german"]
+    expect(user.name_changed?).to be_truthy
+    expect(user.name_changes).to eq(["germaninthetown", "german"])
   end
 end

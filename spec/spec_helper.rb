@@ -24,16 +24,7 @@ RSpec.configure do |config|
       $redis = Redis.new(:host => 'localhost')
     rescue => e
       puts 'Unable to create connection to the redis server: ' + e.message.inspect
-      Process.kill 9, $redis_pid.to_i if $redis_pid
     end
-  end
-  
-  config.after(:all) do
-    Process.kill 9, $redis_pid.to_i if $redis_pid
-  end
-
-  config.after(:each) do
-   $redis.flushall if $redis
   end
 
   config.before(:each) do
