@@ -98,21 +98,21 @@ module RedisOrm
           # we should have an option to delete created earlier associasion (like 'node.owner = nil')
           if assoc_with_record.nil?
             # remove old assoc            
-            $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
+            $redis.zrem("#{old_assoc.model_name.singular}:#{old_assoc.id}:#{model_name.plural}", self.id) if old_assoc
           else
             # check whether *assoc_with_record* object has *has_many* declaration and
             # TODO it states *self.model_name* in plural 
             # and there is no record yet from the *assoc_with_record*'s side 
             # (in order not to provoke recursion)
-            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
+            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym} && !$redis.zrank("#{assoc_with_record.model_name.singular}:#{assoc_with_record.id}:#{model_name.plural}", self.id)
               # remove old assoc
-              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
-              assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
+              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.plural}", self.id) if old_assoc
+              assoc_with_record.send(model_name.plural.to_sym).send(:"<<", self)
 
             # check whether *assoc_with_record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-            elsif class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
+            elsif class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym} && assoc_with_record.send(model_name.singular.to_sym).nil?
               # old association is being rewritten here automatically so we don't have to worry about it
-              assoc_with_record.send("#{model_name}=", self)
+              assoc_with_record.send("#{model_name.singular}=", self)
             end
           end
         end

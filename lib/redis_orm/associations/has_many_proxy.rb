@@ -5,7 +5,7 @@ module RedisOrm
       
       def initialize(receiver_model_name, reciever_id, foreign_models, options)
         @records = [] #records.to_a
-        @reciever_model_name = receiver_model_name
+        @reciever_model_name = receiver_model_name.to_s.downcase
         @reciever_id = reciever_id
         @foreign_models = foreign_models
         @options = options
@@ -40,7 +40,7 @@ module RedisOrm
           receiver_instance.set_expire_on_reference_key(__key__)
           
           record.get_indices.each do |index|
-            save_index_for_associated_record(index, record, [@reciever_model_name, @reciever_id, record.model_name.pluralize]) # record.model_name.pluralize => @foreign_models
+            save_index_for_associated_record(index, record, [@reciever_model_name, @reciever_id, record.model_name.plural])
           end
 
           if !@options[:as]
@@ -115,7 +115,8 @@ module RedisOrm
             else
               $redis.zrangebyscore(prepared_index, 0, Time.now.to_f, :limit => limit)
             end
-            @records += @foreign_models.to_s.singularize.camelize.constantize.find(ids)
+            arr = @foreign_models.to_s.singularize.camelize.constantize.find(ids)
+            @records += arr
           end
           @fetched = true
           @records
@@ -140,7 +141,7 @@ module RedisOrm
           all(options.merge({:limit => 1}))[0]
         elsif token == :last
           reversed = options[:order] == 'desc' ? 'asc' : 'desc'
-          all(options.merge({:limit => 1, :order => reversed}))[0]
+          all(options.merge({limit: 1, order: reversed}))[0]
         end
       end
 
@@ -161,7 +162,7 @@ module RedisOrm
 
         # helper method
         def __key__
-          @options[:as] ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
+          (@options && @options[:as]) ? "#{@reciever_model_name}:#{@reciever_id}:#{@options[:as]}" : "#{@reciever_model_name}:#{@reciever_id}:#{@foreign_models}"
         end
 
         # "article:1:comments:moderated:true"

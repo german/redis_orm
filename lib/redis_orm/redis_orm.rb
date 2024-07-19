@@ -14,13 +14,9 @@ require 'active_support/core_ext/numeric'
 require 'active_support/core_ext/time/calculations' # local_time for to_time(:local)
 require 'active_support/core_ext/string/conversions' # to_time
 
-require 'active_model/validator'
-require 'active_model/validations'
-
 module RedisOrm
   # there is no Boolean class in Ruby so defining a special class to specify TrueClass or FalseClass objects
-  class Boolean
-  end
+  class Boolean; end
 
   # it's raised when found request was initiated on the property/properties which have no index on it
   class NotIndexFound < StandardError
@@ -45,8 +41,10 @@ module RedisOrm
   end
 
   class Base
-    include ActiveModel::Validations
-    include ActiveModelBehavior
+    include ActiveModel::API
+    include ActiveModel::Dirty
+    extend ActiveModel::Callbacks
+
     include Utils
     include Associations::HasManyHelper
     
@@ -54,12 +52,11 @@ module RedisOrm
     extend Associations::HasMany
     extend Associations::HasOne
 
-    attr_accessor :persisted
+    # attr_accessor :persisted
 
     @@properties = Hash.new{|h,k| h[k] = []}
     @@indices = Hash.new{|h,model_name| h[model_name] = []} # compound indices are available too
     @@associations = Hash.new{|h,model_name| h[model_name] = []}
-    @@callbacks = Hash.new{|h,k| h[k] = {}}
     @@use_uuid_as_id = {}
     @@descendants = []
     @@expire = Hash.new{|h,k| h[k] = {}}
@@ -67,10 +64,6 @@ module RedisOrm
     class << self
 
       def inherited(from)
-        [:after_save, :before_save, :after_create, :before_create, :after_destroy, :before_destroy].each do |callback_name|
-          @@callbacks[from.model_name][callback_name] = []
-        end
-        
         @@descendants << from
       end
       
@@ -86,56 +79,21 @@ module RedisOrm
       end
 
       def property(property_name, class_name, options = {})
-        @@properties[model_name] << {:name => property_name, :class => class_name.to_s, :options => options}
+        @@properties[model_name] << {
+          name: property_name, class: class_name.to_s, options: options
+        }
 
-        send(:define_method, property_name) do
-          value = instance_variable_get(:"@#{property_name}")
-
-          return nil if value.nil? # we must return nil here so :default option will work when saving, otherwise it'll return "" or 0 or 0.0
-          if /DateTime|Time/ =~ class_name.to_s            
-            # we're using to_datetime here because to_time doesn't manage timezone correctly
-            value.to_s.to_datetime rescue nil
-          elsif Integer == class_name
-            value.to_i
-          elsif Float == class_name
-            value.to_f
-          elsif RedisOrm::Boolean == class_name
-            ((value == "false" || value == false) ? false : true)
-          else
-            value
-          end
-        end
-    
-        send(:define_method, "#{property_name}=".to_sym) do |value|
-          if instance_variable_get(:"@#{property_name}_changes") && !instance_variable_get(:"@#{property_name}_changes").empty?
-            initial_value = instance_variable_get(:"@#{property_name}_changes")[0]
-            instance_variable_set(:"@#{property_name}_changes", [initial_value, value])
-          elsif instance_variable_get(:"@#{property_name}")
-            instance_variable_set(:"@#{property_name}_changes", [self.send(property_name), value])
-          else
-            instance_variable_set(:"@#{property_name}_changes", [value])
-          end
-          instance_variable_set(:"@#{property_name}", value)
-        end
-  
-        send(:define_method, "#{property_name}_changes".to_sym) do
-          instance_variable_get(:"@#{property_name}_changes")
-        end
-        
-        send(:define_method, "#{property_name}_changed?".to_sym) do
-          instance_variable_get(:"@#{property_name}_changes").size > 1
-        end
+        attr_accessor property_name
+        define_attribute_methods property_name # for ActiveModel::Dirty
       end
 
       def timestamps
-        #if !@@properties[model_name].detect{|p| p[:name] == :created_at && p[:class] == "Time"}
         if !instance_methods.include?(:created_at) && !instance_methods.include?(:"created_at=")
-          property :created_at, Time
+          property :created_at, DateTime, default: ->{ Time.now }
         end
         
-        #if !@@properties[model_name].detect{|p| p[:name] == :modified_at && p[:class] == "Time"}
         if !instance_methods.include?(:modified_at) && !instance_methods.include?(:"modified_at=")
-          property :modified_at, Time
+          property :modified_at, DateTime, default: ->{ Time.now }
         end
       end
       
@@ -153,21 +111,11 @@ module RedisOrm
       end
 
       def first(options = {})
-        if options.empty?
-          id = $redis.zrangebyscore("#{model_name}:ids", 0, Time.now.to_f, :limit => [0, 1])
-          id.empty? ? nil : find(id[0])
-        else
-          find(:first, options)
-        end
+        find(:first, options)
       end
 
       def last(options = {})
-        if options.empty?
-          id = $redis.zrevrangebyscore("#{model_name}:ids", Time.now.to_f, 0, :limit => [0, 1])
-          id.empty? ? nil : find(id[0])
-        else
-          find(:last, options)
-        end
+        find(:last, options)
       end
       
       def find_indices(properties, options = {})
@@ -311,12 +259,12 @@ module RedisOrm
       def find(*args)
         if args.first.is_a?(Array)
           return [] if args.first.empty?
-          args.first.inject([]) do |array, id|
+          args.first.map do |id|
             record = $redis.hgetall "#{model_name}:#{id}"
             if record && !record.empty?
-              array << new(record, id, true)
+              new(record, id, true)
             end
-          end
+          end.compact
         else
           return nil if args.empty? || args.first.nil?
           case first = args.shift
@@ -349,30 +297,6 @@ module RedisOrm
           result
         end
       end
-      
-      def after_save(callback)        
-        @@callbacks[model_name][:after_save] << callback
-      end
-
-      def before_save(callback)        
-        @@callbacks[model_name][:before_save] << callback
-      end
-
-      def after_create(callback)        
-        @@callbacks[model_name][:after_create] << callback
-      end
-
-      def before_create(callback)
-        @@callbacks[model_name][:before_create] << callback
-      end
-
-      def after_destroy(callback)
-        @@callbacks[model_name][:after_destroy] << callback
-      end
-      
-      def before_destroy(callback)        
-        @@callbacks[model_name][:before_destroy] << callback
-      end
 
       def create(options = {})
         obj = new(options, nil, false)
@@ -388,9 +312,7 @@ module RedisOrm
         $redis.expire(obj.__redis_record_key, options[:expire_in].to_i) if !options[:expire_in].blank?
 
         obj
-      end      
-      
-      alias :create! :create
+      end
       
       # dynamic finders
       def method_missing(method_name, *args, &block)
@@ -473,36 +395,53 @@ module RedisOrm
     end
     
     def initialize(attributes = {}, id = nil, persisted = false)
+      aligned_attributes = {}
+      clear_changes_information
+      attributes.map do |attribute, value|
+        property = @@properties[model_name].find { |prop| prop[:name].to_s == attribute.to_s }
+        prop_value = if property && property[:class] != value.class.to_s
+          case property[:class]
+          when /DateTime|Time/
+            value.to_s.to_time(:local) rescue ''
+          when 'Integer'
+            value.to_i
+          when 'Float'
+            value.to_f
+          when 'RedisOrm::Boolean'
+            (value == "false" || value == false) ? false : true
+          when /Hash|Array/
+            JSON.parse(value) rescue ''
+          end
+        else
+          value
+        end
+
+        aligned_attributes[attribute] = prop_value
+      end
+
+      if !@persisted
+        @@properties[model_name].each do |prop|
+          if aligned_attributes[prop[:name]].nil? && !prop[:options][:default].nil?
+            calculated_value = if prop[:options][:default].is_a?(Proc)
+              prop[:options][:default].call
+            else
+              prop[:options][:default]
+            end
+
+            aligned_attributes[prop[:name]] = calculated_value
+          end
+        end
+      end
+      
+      super(aligned_attributes)
+      
       @persisted = persisted
 
-      # if this model uses uuid then id is a string otherwise it should be casted to Integer class
+      # # if this model uses uuid then id is a string otherwise it should be casted to Integer class
       id = @@use_uuid_as_id[model_name] ? id : id.to_i
 
       instance_variable_set(:"@id", id) if id
 
-      # when object is created with empty attribute set @#{prop[:name]}_changes array properly
-      @@properties[model_name].each do |prop|
-        if prop[:options][:default]
-          instance_variable_set :"@#{prop[:name]}_changes", [prop[:options][:default]]
-        else
-          instance_variable_set :"@#{prop[:name]}_changes", []
-        end
-      end
-
-      # cast all attributes' keys to symbols
-      attributes = attributes.inject({}){|sum, el| sum.merge({el[0].to_sym => el[1]})} if attributes.is_a?(Hash)
-
-      # get all names of properties to assign only those attributes from attributes hash whose key are in prop_names 
-      # we're not using *self.respond_to?("#{key}=".to_sym)* since *belongs_to* and other assocs could create their own methods 
-      # with *key=* name, that in turn will mess up indices
-      if attributes.is_a?(Hash) && !attributes.empty?        
-        @@properties[model_name].each do |property|
-          if !(value = attributes[property[:name]]).nil? # check for nil because we want to pass falses too (and value could be 'false')
-            value = Marshal.load(value) if ["Array", "Hash"].include?(property[:class]) && value.is_a?(String)
-            self.send("#{property[:name]}=".to_sym, value)
-          end
-        end
-      end
       self
     end
 
@@ -513,7 +452,7 @@ module RedisOrm
     alias :to_key :id
     
     def to_s
-      inspected = "<#{model_name.capitalize} id: #{@id}, "
+      inspected = "<#{model_name.name} id: #{@id}, "
       inspected += @@properties[model_name].inject([]) do |sum, prop|
         property_value = instance_variable_get(:"@#{prop[:name]}")
         property_value = '"' + property_value.to_s + '"' if prop[:class].eql?("String")
@@ -557,16 +496,12 @@ module RedisOrm
 
       if persisted? # then there might be old indices
         _check_indices_for_persisted # remove old indices if needed
-      else # !persisted?        
-        @@callbacks[model_name][:before_create].each{ |callback| self.send(callback) }
- 
+      else # !persisted?
         @id = get_next_id
         $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
         @persisted = true
         self.created_at = Time.now if respond_to? :created_at
       end
-
-      @@callbacks[model_name][:before_save].each{ |callback| self.send(callback) }
 
       # automatically update *modified_at* property if it was defined
       self.modified_at = Time.now if respond_to? :modified_at
@@ -574,11 +509,7 @@ module RedisOrm
       _save_to_redis # main work done here
       _save_new_indices
 
-      @@callbacks[model_name][:after_save].each{ |callback| self.send(callback) }
-
-      if ! was_persisted
-        @@callbacks[model_name][:after_create].each{ |callback| self.send(callback) }
-      end
+      changes_applied # for ActiveModel::Dirty
 
       true # if there were no errors just return true, so *if obj.save* conditions would work
     end
@@ -639,10 +570,6 @@ module RedisOrm
     end
 
     def destroy
-      @@callbacks[model_name][:before_destroy].each do |callback|
-        self.send(callback)
-      end
-
       @@properties[model_name].each do |prop|
         property_value = instance_variable_get(:"@#{prop[:name]}").to_s
         $redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
@@ -759,10 +686,6 @@ module RedisOrm
         else
           $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
         end
-      end
-
-      @@callbacks[model_name][:after_destroy].each do |callback|
-        self.send(callback)
       end
 
       true # if there were no errors just return true, so *if* conditions would work
@@ -883,38 +806,30 @@ module RedisOrm
     def _save_to_redis
       @@properties[model_name].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
-        
+
         if prop_value.nil? && !prop[:options][:default].nil?
           prop_value = prop[:options][:default]
-
-          # cast prop_value to proper class if they are not in it
-          # for example 'property :wage, Float, :sortable => true, :default => 20_000' turn 20_000 to 20_000.0
-          if prop[:class] != prop_value.class.to_s
-            prop_value = case prop[:class]
-                         when 'Time'
-                           begin
-                             value.to_s.to_time(:local)
-                           rescue ArgumentError => e
-                             nil
-                           end
-                         when 'Integer'
-                           prop_value.to_i
-                         when 'Float'
-                           prop_value.to_f
-                         when 'RedisOrm::Boolean'
-                           (prop_value == "false" || prop_value == false) ? false : true
-                         end
-          end
-
-          # set instance variable in order to properly save indexes here
-          self.instance_variable_set(:"@#{prop[:name]}", prop_value)
-          instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
         end
 
-        # serialize array- and hash-type properties 
-        if ['Array', 'Hash'].include?(prop[:class]) && !prop_value.is_a?(String)
-          prop_value = Marshal.dump(prop_value)
-        end
+        # cast prop_value to proper class
+        prop_value = case prop[:class]
+                     when /Time|DateTime/
+                       prop_value.to_s
+                     when 'Integer'
+                       prop_value.to_i
+                     when 'Float'
+                       prop_value.to_f
+                     when 'RedisOrm::Boolean'
+                       (prop_value == "false" || prop_value == false) ? 'false' : 'true'
+                     when /Array|Hash/
+                       prop_value.to_json
+                     else
+                       prop_value.to_s
+                     end
+
+        # set instance variable in order to properly save indexes here
+        # instance_variable_set(:"@#{prop[:name]}", prop_value)
+        # instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
 
         #TODO put out of loop
         $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
@@ -922,11 +837,11 @@ module RedisOrm
         set_expire_on_reference_key(__redis_record_key)
         
         # reducing @#{prop[:name]}_changes array to the last value
-        prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
+        # prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
 
-        if prop_changes && prop_changes.size > 2
-          instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
-        end
+        # if prop_changes && prop_changes.size > 2
+        #   instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
+        # end
         
         # if some property need to be sortable add id of the record to the appropriate sorted set
         if prop[:options][:sortable]
@@ -945,7 +860,7 @@ module RedisOrm
               when "Integer"; property_value.to_f
               when "Float"; property_value.to_f
               when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
-              when "Time"; property_value.to_f
+              when /Time|DateTime/; property_value.to_f
             end
             $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
             # add to every indexed property
