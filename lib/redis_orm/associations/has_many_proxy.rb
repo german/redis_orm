@@ -36,7 +36,7 @@ module RedisOrm
       def <<(new_records)
         new_records.to_a.each do |record|
           $redis.zadd(__key__, Time.now.to_f, record.id)
-          
+
           receiver_instance.set_expire_on_reference_key(__key__)
           
           record.get_indices.each do |index|
@@ -56,7 +56,7 @@ module RedisOrm
                 @reciever_model_name.pluralize
               end
 
-              reference_key = "#{record.model_name}:#{record.id}:#{pluralized_reciever_model_name}"
+              reference_key = "#{record.model_name.singular}:#{record.id}:#{pluralized_reciever_model_name}"
               
               if !$redis.zrank(reference_key, @reciever_id)
                 $redis.zadd(reference_key, Time.now.to_f, @reciever_id)
@@ -70,7 +70,7 @@ module RedisOrm
                 @reciever_model_name
               end
               if record.public_send(reciever_model_name).nil?
-                key = "#{record.model_name}:#{record.id}:#{reciever_model_name}"
+                key = "#{record.model_name.singular}:#{record.id}:#{reciever_model_name}"
                 $redis.set(key, @reciever_id)
                 receiver_instance.set_expire_on_reference_key(key)
               end

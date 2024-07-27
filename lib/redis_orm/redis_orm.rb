@@ -75,11 +75,11 @@ module RedisOrm
       #   *unique* Boolean
       #   *case_insensitive* Boolean
       def index(name, options = {})
-        @@indices[model_name] << Index.new(name, options)
+        @@indices[model_name.singular] << Index.new(name, options)
       end
 
       def property(property_name, class_name, options = {})
-        @@properties[model_name] << {
+        @@properties[model_name.singular] << {
           name: property_name, class: class_name.to_s, options: options
         }
 
@@ -98,16 +98,16 @@ module RedisOrm
       end
       
       def expire(seconds, options = {})
-        @@expire[model_name] = {seconds: seconds, options: options}
+        @@expire[model_name.singular] = {seconds: seconds, options: options}
       end
 
       def use_uuid_as_id
-        @@use_uuid_as_id[model_name] = true
+        @@use_uuid_as_id[model_name.singular] = true
         @@uuid = UUID.new
       end
       
       def count
-        $redis.zcard("#{model_name}:ids").to_i
+        $redis.zcard("#{model_name.singular}:ids").to_i
       end
 
       def first(options = {})
@@ -133,14 +133,14 @@ module RedisOrm
       end
       
       def construct_prepared_index(index, conditions_hash)
-        prepared_index = model_name.to_s
+        prepared_index = model_name.singular.to_s
        
         # in order not to depend on order of keys in *:conditions* hash we rather interate over
         # the index itself and find corresponding values in *:conditions* hash
         if index.name.is_a?(Array)
           index.name.each do |key|
             # raise if User.find_by_firstname_and_castname => there's no *castname* in User's properties
-            raise ArgumentsMismatch if !@@properties[model_name].detect{|p| p[:name] == key.to_sym}
+            raise ArgumentsMismatch if !@@properties[model_name.singular].detect{|p| p[:name] == key.to_sym}
             prepared_index += ":#{key}:#{conditions_hash[key]}"
           end
         else
@@ -163,7 +163,7 @@ module RedisOrm
         end
         
         order_max_limit = Time.now.to_f
-        ids_key = "#{model_name}:ids"
+        ids_key = "#{model_name.singular}:ids"
         index = nil
 
         prepared_index = if !options[:conditions].blank? && options[:conditions].is_a?(Hash)
@@ -260,7 +260,7 @@ module RedisOrm
         if args.first.is_a?(Array)
           return [] if args.first.empty?
           args.first.map do |id|
-            record = $redis.hgetall "#{model_name}:#{id}"
+            record = $redis.hgetall "#{model_name.singular}:#{id}"
             if record && !record.empty?
               new(record, id, true)
             end
@@ -283,7 +283,7 @@ module RedisOrm
               all(options.merge({:limit => 1, :order => reversed}))[0]
             else
               id = first
-              record = $redis.hgetall "#{model_name}:#{id}"
+              record = $redis.hgetall "#{model_name.singular}:#{id}"
               record && record.empty? ? nil : new(record, id, true)
           end
         end        
@@ -304,7 +304,7 @@ module RedisOrm
 
         # make possible binding related models while creating class instance
         options.each do |k, v|
-          if @@associations[model_name].detect{|h| h[:foreign_model] == k || h[:options][:as] == k}
+          if @@associations[model_name.singular].detect{|h| h[:foreign_model] == k || h[:options][:as] == k}
             obj.send("#{k}=", v)
           end
         end
@@ -365,7 +365,7 @@ module RedisOrm
     end
  
     def __redis_record_key
-      "#{model_name}:#{id}"
+      "#{model_name.singular}:#{id}"
     end
    
     def set_expire_on_reference_key(key)
@@ -386,12 +386,12 @@ module RedisOrm
    
     # is called from RedisOrm::Associations::HasMany to save backlinks to saved records
     def get_associations
-      @@associations[self.model_name]
+      @@associations[self.model_name.singular]
     end
 
     # is called from RedisOrm::Associations::HasMany to correctly save indices for associated records
     def get_indices
-      @@indices[self.model_name]
+      @@indices[self.model_name.singular]
     end
     
     def initialize(attributes = {}, id = nil, persisted = false)
@@ -482,7 +482,7 @@ module RedisOrm
       if @@use_uuid_as_id[model_name]
         @@uuid.generate(:compact)
       else
-        $redis.incr("#{model_name}:id")
+        $redis.incr("#{model_name.singular}:id")
       end
     end    
     
@@ -498,7 +498,7 @@ module RedisOrm
         _check_indices_for_persisted # remove old indices if needed
       else # !persisted?
         @id = get_next_id
-        $redis.zadd "#{model_name}:ids", Time.now.to_f, @id
+        $redis.zadd "#{model_name.singular}:ids", Time.now.to_f, @id
         @persisted = true
         self.created_at = Time.now if respond_to? :created_at
       end
@@ -570,30 +570,30 @@ module RedisOrm
     end
 
     def destroy
-      @@properties[model_name].each do |prop|
+      @@properties[model_name.singular].each do |prop|
         property_value = instance_variable_get(:"@#{prop[:name]}").to_s
-        $redis.hdel("#{model_name}:#{@id}", prop[:name].to_s)
+        $redis.hdel("#{model_name.singular}:#{@id}", prop[:name].to_s)
         
         if prop[:options][:sortable]
           if prop[:class].eql?("String")
-            $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
+            $redis.lrem "#{model_name.singular}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
           else
-            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+            $redis.zrem "#{model_name.singular}:#{prop[:name]}_ids", @id
           end
         end
       end
 
-      $redis.zrem "#{model_name}:ids", @id
+      $redis.zrem "#{model_name.singular}:ids", @id
 
       # also we need to delete *indices* of associated records
-      if !@@associations[model_name].empty?
-        @@associations[model_name].each do |assoc|        
+      if !@@associations[model_name.singular].empty?
+        @@associations[model_name.singular].each do |assoc|
           if :belongs_to == assoc[:type]
             # if assoc has :as option
             foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
             
             if !self.send(foreign_model_name).nil?
-              @@indices[model_name].each do |index|
+              @@indices[model_name.singular].each do |index|
                 keys_to_delete = if index.name.is_a?(Array)
                   full_index = index.name.inject([]){|sum, index_part| sum << index_part}.join(':')
                   $redis.keys "#{foreign_model_name}:#{self.public_send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
@@ -610,8 +610,8 @@ module RedisOrm
       end
       
       # also we need to delete *links* to associated records
-      if !@@associations[model_name].empty?
-        @@associations[model_name].each do |assoc|
+      if !@@associations[model_name.singular].empty?
+        @@associations[model_name.singular].each do |assoc|
 
           foreign_model  = ""
           records = []
@@ -623,26 +623,26 @@ module RedisOrm
               if assoc[:options][:polymorphic]
                 records << self.send(foreign_model_name)
                 # get real foreign_model's name in order to delete backlinks properly
-                foreign_model = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
-                $redis.del("#{model_name}:#{id}:#{foreign_model_name}_type")
-                $redis.del("#{model_name}:#{id}:#{foreign_model_name}_id")
+                foreign_model = $redis.get("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
+                $redis.del("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
+                $redis.del("#{model_name.singular}:#{id}:#{foreign_model_name}_id")
               else
                 records << self.send(foreign_model_name)
-                $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
+                $redis.del "#{model_name.singular}:#{@id}:#{assoc[:foreign_model]}"
               end
             when :has_one
               foreign_model = assoc[:foreign_model].to_s
               foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
               records << self.send(foreign_model_name)
 
-              $redis.del "#{model_name}:#{@id}:#{assoc[:foreign_model]}"
+              $redis.del "#{model_name.singular}:#{@id}:#{assoc[:foreign_model]}"
             when :has_many
               foreign_model = assoc[:foreign_models].to_s.singularize
               foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_models]
               records += self.send(foreign_models_name)
 
               # delete all members             
-              $redis.zremrangebyscore "#{model_name}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
+              $redis.zremrangebyscore "#{model_name.singular}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
           end
 
           # check whether foreign_model also has an assoc to the destroying record
@@ -653,16 +653,16 @@ module RedisOrm
               # it's covered in test/option_test in "should delete link to associated record when record was deleted" scenario
               # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
               # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
-              if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.to_sym}
+              if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.singular.to_sym}
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
 
-              if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym}
+              if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym}
                 $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
               end
 
-              if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym}
-                $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.pluralize}", @id
+              if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym}
+                $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.plural}", @id
               end
             end
           end
@@ -678,7 +678,7 @@ module RedisOrm
       end
 
       # remove all associated indices
-      @@indices[model_name].each do |index|
+      @@indices[model_name.singular].each do |index|
         prepared_index = _construct_prepared_index(index) # instance method not class one!
 
         if index.options[:unique]
@@ -694,11 +694,11 @@ module RedisOrm
   protected
     def _construct_prepared_index(index)
       index_name = if index.name.is_a?(Array) # TODO sort alphabetically
-        index.name.inject([model_name]) do |sum, index_part|
+        index.name.inject([model_name.singular]) do |sum, index_part|
           sum += [index_part, self.instance_variable_get(:"@#{index_part}")]
         end.join(':')          
       else
-        [model_name, index.name, self.instance_variable_get(:"@#{index.name}")].join(':')
+        [model_name.singular, index.name, self.instance_variable_get(:"@#{index.name}")].join(':')
       end
       
       index_name.downcase! if index.options[:case_insensitive]
@@ -707,7 +707,7 @@ module RedisOrm
 
     def _check_mismatched_types_for_values
       # an exception should be raised before all saving procedures if wrong value type is specified (especcially true for Arrays and Hashes)
-      @@properties[model_name].each do |prop|
+      @@properties[model_name.singular].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
         
         if prop_value && prop[:class] != prop_value.class.to_s && ['Array', 'Hash'].include?(prop[:class].to_s)
@@ -718,7 +718,7 @@ module RedisOrm
     
     def _check_indices_for_persisted
       # check whether there's old indices exists and if yes - delete them
-      @@properties[model_name].each do |prop|
+      @@properties[model_name.singular].each do |prop|
         # if there were no changes for current property skip it (indices remains the same)
         next if ! self.send(:"#{prop[:name]}_changed?")
         
@@ -727,21 +727,21 @@ module RedisOrm
         # TODO DRY in destroy also
         if prop[:options][:sortable]
           if prop[:class].eql?("String")
-            $redis.lrem "#{model_name}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
+            $redis.lrem "#{model_name.singular}:#{prop[:name]}_ids", 1, "#{prev_prop_value}:#{@id}"
             # remove id from every indexed property
-            @@indices[model_name].each do |index|
+            @@indices[model_name.singular].each do |index|
               $redis.lrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", 1, "#{prop_value}:#{@id}"
             end
           else
-            $redis.zrem "#{model_name}:#{prop[:name]}_ids", @id
+            $redis.zrem "#{model_name.singular}:#{prop[:name]}_ids", @id
             # remove id from every indexed property
-            @@indices[model_name].each do |index|
+            @@indices[model_name.singular].each do |index|
               $redis.zrem "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", @id
             end
           end
         end
 
-        indices = @@indices[model_name].inject([]) do |sum, index|
+        indices = @@indices[model_name.singular].inject([]) do |sum, index|
           if index.name.is_a?(Array)
             if index.name.include?(prop[:name])
               sum << index
@@ -761,20 +761,20 @@ module RedisOrm
           indices.each do |index|
             if index.name.is_a?(Array)
               keys_to_delete = if index.name.index(prop) == 0
-                $redis.keys "#{model_name}:#{prop[:name]}#{prev_prop_value}*"
+                $redis.keys "#{model_name.singular}:#{prop[:name]}#{prev_prop_value}*"
               else
-                $redis.keys "#{model_name}:*#{prop[:name]}:#{prev_prop_value}*"
+                $redis.keys "#{model_name.singular}:*#{prop[:name]}:#{prev_prop_value}*"
               end
 
               keys_to_delete.each{|key| $redis.del(key)}
             else
-              key_to_delete = "#{model_name}:#{prop[:name]}:#{prev_prop_value}"
+              key_to_delete = "#{model_name.singular}:#{prop[:name]}:#{prev_prop_value}"
               $redis.del key_to_delete
             end
 
             # also we need to delete associated records *indices*
-            if !@@associations[model_name].empty?
-              @@associations[model_name].each do |assoc|
+            if !@@associations[model_name.singular].empty?
+              @@associations[model_name.singular].each do |assoc|
                 if :belongs_to == assoc[:type]
                   # if association has :as option use it, otherwise use standard :foreign_model
                   foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
@@ -802,9 +802,22 @@ module RedisOrm
         end
       end
     end
-      
+
+    # keys
+    def model_prop_ids(prop)
+      "#{model_name.singular}:#{prop[:name]}_ids"
+    end
+
+    def model_ids
+      "#{model_name.singular}:_ids"
+    end
+
+    def __sortable_key(prop, index)
+      "#{_construct_prepared_index(index)}:#{prop[:name]}_ids"
+    end
+
     def _save_to_redis
-      @@properties[model_name].each do |prop|
+      @@properties[model_name.singular].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
 
         if prop_value.nil? && !prop[:options][:default].nil?
@@ -847,12 +860,12 @@ module RedisOrm
         if prop[:options][:sortable]
           property_value = instance_variable_get(:"@#{prop[:name]}").to_s
           if prop[:class].eql?("String")
-            sortable_key = "#{model_name}:#{prop[:name]}_ids"
+            sortable_key = model_prop_ids(prop)
             el_or_position_to_insert = find_position_to_insert(sortable_key, property_value)
             el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
             # add to every indexed property
-            @@indices[model_name].each do |index|
-              sortable_key = "#{_construct_prepared_index(index)}:#{prop[:name]}_ids"
+            @@indices[model_name.singular].each do |index|
+              sortable_key = __sortable_key(prop, index)
               el_or_position_to_insert == 0 ? $redis.lpush(sortable_key, "#{property_value}:#{@id}") : $redis.linsert(sortable_key, "AFTER", el_or_position_to_insert, "#{property_value}:#{@id}")
             end
           else
@@ -862,10 +875,10 @@ module RedisOrm
               when "RedisOrm::Boolean"; (property_value == true ? 1.0 : 0.0)
               when /Time|DateTime/; property_value.to_f
             end
-            $redis.zadd "#{model_name}:#{prop[:name]}_ids", score, @id
+            $redis.zadd model_prop_ids(prop), score, @id
             # add to every indexed property
-            @@indices[model_name].each do |index|
-              $redis.zadd "#{_construct_prepared_index(index)}:#{prop[:name]}_ids", score, @id
+            @@indices[model_name.singular].each do |index|
+              $redis.zadd __sortable_key(prop, index), score, @id
             end
           end
         end
@@ -875,7 +888,7 @@ module RedisOrm
     def _save_new_indices
       # save new indices (not *reference* onces (for example not these *belongs_to :note, :index => true*)) in order to sort by finders
       # city:name:Chicago => 1
-      @@indices[model_name].reject{|index| index.options[:reference]}.each do |index|
+      @@indices[model_name.singular].reject{|index| index.options[:reference]}.each do |index|
         prepared_index = _construct_prepared_index(index) # instance method not class one!
 
         if index.options[:unique]

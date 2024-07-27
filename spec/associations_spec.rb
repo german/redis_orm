@@ -37,14 +37,14 @@ describe "check associations" do
     # from has_many proxy side
     @article.comments << [@comment1, @comment2]
     @article.comments.count.should == 2
-    @comment1.article.id.should == @article.id
-    @comment2.article.id.should == @article.id
+    expect(@comment1.article.id).to eq(@article.id)
+    expect(@comment2.article.id).to eq(@article.id)
     
     # clear    
     @article.comments = []
     @article.comments.count.should == 0
-    @comment1.article.should == nil
-    @comment2.article.should == nil
+    expect(@comment1.article).to be_nil
+    expect(@comment2.article).to be_nil
 
     # from belongs_to side
     @article.comments << [@comment1, @comment2]
