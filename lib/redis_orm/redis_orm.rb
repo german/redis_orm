@@ -82,6 +82,12 @@ module RedisOrm
         }
 
         attr_accessor property_name
+
+        define_method "#{property_name}=".to_sym do |val|
+          public_send("#{property_name}_will_change!") unless val == instance_variable_get(:"@#{property_name}")
+          instance_variable_set(:"@#{property_name}", val)
+        end
+
         define_attribute_methods property_name # for ActiveModel::Dirty
       end
 
@@ -727,8 +733,9 @@ module RedisOrm
         # if there were no changes for current property skip it (indices remains the same)
         next if ! self.send(:"#{prop[:name]}_changed?")
         
-        prev_prop_value = instance_variable_get(:"@#{prop[:name]}_changes").first
+        prev_prop_value = public_send("#{prop[:name]}_change").first
         prop_value = instance_variable_get(:"@#{prop[:name]}")
+
         # TODO DRY in destroy also
         if prop[:options][:sortable]
           if prop[:class].eql?("String")
