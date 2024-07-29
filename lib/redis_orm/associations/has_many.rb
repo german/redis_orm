@@ -7,11 +7,11 @@ module RedisOrm
       def has_many(foreign_models, options = {})
         class_associations = class_variable_get(:"@@associations")
         class_associations[model_name.singular] << {:type => :has_many, :foreign_models => foreign_models, :options => options}
-        
+
         foreign_models_name = options[:as] ? options[:as].to_sym : foreign_models.to_sym
 
         define_method foreign_models_name.to_sym do
-          Associations::HasManyProxy.new(model_name, id, foreign_models, options)
+          Associations::HasManyProxy.new(model_name.singular, id, foreign_models, options)
         end
 
         # user = User.find(1)
@@ -43,7 +43,7 @@ module RedisOrm
             end
 
             # clear old assocs from this model side
-            $redis.zremrangebyscore "#{model_name.singular}:#{id}:#{foreign_models}", 0, Time.now.to_f
+            $redis.zremrangebyscore "#{model_name.singular}:#{id}:#{foreign_models_name}", 0, Time.now.to_f
           end
 
           records.to_a.each do |record|

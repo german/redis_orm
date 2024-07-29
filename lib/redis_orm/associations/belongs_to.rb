@@ -30,7 +30,7 @@ module RedisOrm
           __key__ = "#{model_name.singular}:#{@id}:#{foreign_model_name}"
 
           if options[:polymorphic]
-            model_type = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
+            model_type = $redis.get("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
             if model_type
               model_type.to_s.camelize.constantize.find($redis.get "#{__key__}_id")
             end
