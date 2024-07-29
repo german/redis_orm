@@ -52,8 +52,6 @@ module RedisOrm
     extend Associations::HasMany
     extend Associations::HasOne
 
-    # attr_accessor :persisted
-
     @@properties = Hash.new{|h,k| h[k] = []}
     @@indices = Hash.new{|h,model_name| h[model_name] = []} # compound indices are available too
     @@associations = Hash.new{|h,model_name| h[model_name] = []}
@@ -122,7 +120,7 @@ module RedisOrm
         properties.map!{|p| p.to_sym}
         method_name = options[:first] ? :detect : :select
         
-        @@indices[model_name].public_send(method_name) do |index|
+        @@indices[model_name.singular].public_send(method_name) do |index|
           if index.name.is_a?(Array) && index.name.size == properties.size
             # check the elements not taking into account their order
             (index.name & properties).size == properties.size
@@ -186,7 +184,7 @@ module RedisOrm
           construct_prepared_index(index, conds)
         else
           if options[:order] && options[:order].is_a?(Array)
-            model_name
+            model_name.singular
           else
             ids_key
           end
@@ -198,13 +196,13 @@ module RedisOrm
         direction = if !options[:order].blank?
           property = {}
           dir = if options[:order].is_a?(Array)
-            property = @@properties[model_name].detect{|prop| prop[:name].to_s == options[:order].first.to_s}
+            property = @@properties[model_name.singular].detect{|prop| prop[:name].to_s == options[:order].first.to_s}
             # for String values max limit for search key could be 1.0, but for Numeric values there's actually no limit
             order_max_limit = 100_000_000_000
             ids_key = "#{prepared_index}:#{options[:order].first}_ids"
             options[:order].size == 2 ? options[:order].last : 'asc'
           else
-            property = @@properties[model_name].detect{|prop| prop[:name].to_s == options[:order].to_s}
+            property = @@properties[model_name.singular].detect{|prop| prop[:name].to_s == options[:order].to_s}
             ids_key = prepared_index
             options[:order]
           end
@@ -216,7 +214,7 @@ module RedisOrm
           ids_key = prepared_index
           'asc'
         end
-        
+
         if order_by_property_is_string
           if direction.to_s == 'desc'
             ids_length = $redis.llen(ids_key)
@@ -248,9 +246,10 @@ module RedisOrm
             model_name.to_s.camelize.constantize.find(id)
           else
             if direction.to_s == 'desc'
-              $redis.zrevrangebyscore(ids_key, order_max_limit, 0, :limit => limit).compact.collect{|id| find(id)}
+              ids = $redis.zrevrangebyscore(ids_key, order_max_limit, 0, limit: limit).compact
+              ids.collect{|id| find(id)}
             else
-              $redis.zrangebyscore(ids_key, 0, order_max_limit, :limit => limit).compact.collect{|id| find(id)}
+              $redis.zrangebyscore(ids_key, 0, order_max_limit, limit: limit).compact.collect{|id| find(id)}
             end
           end
         end
@@ -275,12 +274,12 @@ module RedisOrm
             when :first
               options = args.last
               options = {} if !options.is_a?(Hash)
-              all(options.merge({:limit => 1}))[0]
+              all(options.merge({limit: 1}))[0]
             when :last
               options = args.last
               options = {} if !options.is_a?(Hash)
               reversed = options[:order] == 'desc' ? 'asc' : 'desc'
-              all(options.merge({:limit => 1, :order => reversed}))[0]
+              all(options.merge({ limit: 1, order: reversed }))[0]
             else
               id = first
               record = $redis.hgetall "#{model_name.singular}:#{id}"
@@ -364,12 +363,16 @@ module RedisOrm
       [self]
     end
  
+    def persisted?
+      self.id.present?
+    end
+
     def __redis_record_key
       "#{model_name.singular}:#{id}"
     end
    
     def set_expire_on_reference_key(key)
-      class_expire = @@expire[model_name]
+      class_expire = @@expire[model_name.singular]
 
       # if class method *expire* was invoked and number of seconds was specified then set expiry date on the HSET record key
       if class_expire[:seconds]
@@ -398,11 +401,13 @@ module RedisOrm
       aligned_attributes = {}
       clear_changes_information
       attributes.map do |attribute, value|
-        property = @@properties[model_name].find { |prop| prop[:name].to_s == attribute.to_s }
+        property = @@properties[model_name.singular].find { |prop| prop[:name].to_s == attribute.to_s }
         prop_value = if property && property[:class] != value.class.to_s
           case property[:class]
-          when /DateTime|Time/
+          when 'Time'
             value.to_s.to_time(:local) rescue ''
+          when 'DateTime'
+            ::DateTime.parse(value.to_s, false) rescue ''
           when 'Integer'
             value.to_i
           when 'Float'
@@ -420,25 +425,25 @@ module RedisOrm
       end
 
       if !@persisted
-        @@properties[model_name].each do |prop|
-          if aligned_attributes[prop[:name]].nil? && !prop[:options][:default].nil?
+        @@properties[model_name.singular].each do |prop|
+          if aligned_attributes[prop[:name].to_s].nil? && !prop[:options][:default].nil?
             calculated_value = if prop[:options][:default].is_a?(Proc)
               prop[:options][:default].call
             else
               prop[:options][:default]
             end
 
-            aligned_attributes[prop[:name]] = calculated_value
+            aligned_attributes[prop[:name].to_s] = calculated_value
           end
         end
       end
-      
+
       super(aligned_attributes)
       
       @persisted = persisted
 
       # # if this model uses uuid then id is a string otherwise it should be casted to Integer class
-      id = @@use_uuid_as_id[model_name] ? id : id.to_i
+      id = @@use_uuid_as_id[model_name.singular] ? id : id.to_i
 
       instance_variable_set(:"@id", id) if id
 
@@ -479,7 +484,7 @@ module RedisOrm
     end
 
     def get_next_id
-      if @@use_uuid_as_id[model_name]
+      if @@use_uuid_as_id[model_name.singular]
         @@uuid.generate(:compact)
       else
         $redis.incr("#{model_name.singular}:id")
@@ -840,21 +845,10 @@ module RedisOrm
                        prop_value.to_s
                      end
 
-        # set instance variable in order to properly save indexes here
-        # instance_variable_set(:"@#{prop[:name]}", prop_value)
-        # instance_variable_set :"@#{prop[:name]}_changes", [prop_value]
-
         #TODO put out of loop
         $redis.hset(__redis_record_key, prop[:name].to_s, prop_value)
 
         set_expire_on_reference_key(__redis_record_key)
-        
-        # reducing @#{prop[:name]}_changes array to the last value
-        # prop_changes = instance_variable_get :"@#{prop[:name]}_changes"
-
-        # if prop_changes && prop_changes.size > 2
-        #   instance_variable_set :"@#{prop[:name]}_changes", [prop_changes.last]
-        # end
         
         # if some property need to be sortable add id of the record to the appropriate sorted set
         if prop[:options][:sortable]

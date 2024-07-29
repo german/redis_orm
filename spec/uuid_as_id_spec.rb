@@ -120,37 +120,40 @@ describe "check basic functionality" do
   end
 
   it "should return correct saved defaults" do
-    UuidDefaultUser.count.should == 0
+    expect(UuidDefaultUser.count).to be(0)
     UuidDefaultUser.create
-    UuidDefaultUser.count.should == 1
+    expect(UuidDefaultUser.count).to be(1)
 
     u = UuidDefaultUser.first
+    expect(u.created_at.class).to be(DateTime)
+    expect(u.modified_at.class).to be(DateTime)
+    expect(u.wage.class).to be(Float)
+    expect(u.male.class.to_s).to match(/TrueClass|FalseClass/)
+    expect(u.admin.class.to_s).to match(/TrueClass|FalseClass/)
+    expect(u.age.class.to_s).to match(/Integer|Fixnum/)
 
-    u.created_at.class.should == DateTime
-    u.modified_at.class.should == DateTime
-    u.wage.class.should == Float
-    u.male.class.to_s.should match(/TrueClass|FalseClass/)
-    u.admin.class.to_s.should match(/TrueClass|FalseClass/)
-    u.age.class.to_s.should match(/Integer|Fixnum/)
-
-    u.name.should == "german"
-    u.male.should == true
-    u.age.should  == 26
-    u.wage.should == 256.25
-    u.admin.should == false
-    u.id.should_not == 1
-    u.id.length.should == 32
+    expect(u.name).to eq("german")
+    expect(u.male).to be(true)
+    expect(u.age).to be(26)
+    expect(u.wage).to be(256.25)
+    expect(u.admin).to be(false)
+    expect(u.id).not_to be(1)
+    expect(u.id.length).to be(32)
     
     du = UuidDefaultUser.new
     du.name = "germaninthetown"
-    du.save
-    
-    du_saved = UuidDefaultUser.last
-    du_saved.name.should == "germaninthetown"
-    du_saved.admin.should == false
-    du.id.should_not == 2
-    du.id.should_not == u.id
-    du.id.length.should == 32
+    expect(du.save).to be_truthy
+    expect(du.name).to eq("germaninthetown")
+
+    expect(UuidDefaultUser.count).to be(2)
+
+    du_last = UuidDefaultUser.last
+    expect(du_last.name).to eq("germaninthetown")
+
+    expect(du_last.admin).to be_falsey
+    expect(du.id).not_to be(2)
+    expect(du.id).not_to be(u.id)
+    expect(du.id.length).to be(32)
   end
   
   it "should expand timestamps declaration properly" do
