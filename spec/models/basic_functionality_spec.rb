@@ -7,12 +7,12 @@ describe "check basic functionality" do
   end
   
   it "should return the same user" do
-    user = User.new :name => "german"
+    user = User.new name: "german"
     user.save
     User.first.should == user
     
     user.name = "Anderson"
-    User.first.should_not == user
+    expect(User.first).not_to eq(user)
   end
 
   it "test_simple_creation" do
@@ -25,7 +25,7 @@ describe "check basic functionality" do
     user.should be
 
     user.name.should == "german"
-    user.__redis_record_key.should == "User:1"
+    user.__redis_record_key.should == "user:1"
 
     User.count.should == 1
     User.first.name.should == "german"
@@ -111,8 +111,8 @@ describe "check basic functionality" do
 
     u = User.first
 
-    u.created_at.class.should == Time
-    u.modified_at.class.should == Time
+    u.created_at.class.should == DateTime
+    u.modified_at.class.should == DateTime
     u.wage.class.should == Float
     u.male.class.to_s.should match(/TrueClass|FalseClass/)
     u.age.class.to_s.should match(/Integer|Fixnum/)

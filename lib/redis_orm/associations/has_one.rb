@@ -7,7 +7,11 @@ module RedisOrm
       #   *:dependant* key: either *destroy* or *nullify* (default)
       def has_one(foreign_model, options = {})
         class_associations = class_variable_get(:"@@associations")
-        class_associations[model_name.singular] << {:type => :has_one, :foreign_model => foreign_model, :options => options}
+        class_associations[model_name.singular] << {
+          type: :has_one,
+          foreign_model: foreign_model,
+          options: options
+        }
 
         foreign_model_name = if options[:as]
           options[:as].to_sym
@@ -45,7 +49,7 @@ module RedisOrm
           self.get_indices.select{|index| index.options[:reference]}.each do |index|
             # delete old reference that points to the old associated record
             if !old_assoc.nil?
-              prepared_index = [self.model_name, index.name, old_assoc.id].join(':')
+              prepared_index = [model_name.singular, index.name, old_assoc.id].join(':')
               prepared_index.downcase! if index.options[:case_insensitive]
 
               if index.options[:unique]
@@ -58,7 +62,7 @@ module RedisOrm
             # if new associated record is nil then skip to next index (since old associated record was already unreferenced)
             next if assoc_with_record.nil?
             
-            prepared_index = [self.model_name, index.name, assoc_with_record.id].join(':')
+            prepared_index = [model_name.singular, index.name, assoc_with_record.id].join(':')
 
             prepared_index.downcase! if index.options[:case_insensitive]
 
@@ -79,7 +83,7 @@ module RedisOrm
 
               if assoc_with_record_has_belongs_to_deslaration
                 # old association is being rewritten here automatically so we don't have to worry about it
-                assoc_with_record.send("#{model_name}=", self)
+                assoc_with_record.send("#{model_name.singular}=", self)
               elsif class_associations[assoc_with_record.model_name.singular].detect{|h| :has_many == h[:type] && h[:foreign_models] == model_name.plural.to_sym} && !$redis.zrank("#{assoc_with_record.model_name.singular}:#{assoc_with_record.id}:#{model_name.plural}", self.id)
                 # remove old assoc
                 $redis.zrem("#{old_assoc.model_name.singular}:#{old_assoc.id}:#{model_name.plural}", id) if old_assoc

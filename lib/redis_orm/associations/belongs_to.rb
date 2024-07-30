@@ -23,7 +23,7 @@ module RedisOrm
         
         if options[:index]
           index = Index.new(foreign_model_name, {reference: true})
-          class_variable_get(:"@@indices")[model_name] << index
+          class_variable_get(:"@@indices")[model_name.singular] << index
         end
         
         define_method foreign_model_name do
@@ -59,7 +59,7 @@ module RedisOrm
           end
           
           if options[:polymorphic]
-            $redis.set("#{__key__}_type", assoc_with_record.model_name)
+            $redis.set("#{__key__}_type", assoc_with_record.model_name.singular)
             $redis.set("#{__key__}_id", assoc_with_record.id)
           else
             if assoc_with_record.nil?
@@ -75,7 +75,7 @@ module RedisOrm
           self.get_indices.select{|index| index.options[:reference]}.each do |index|
             # delete old reference that points to the old associated record
             if !old_assoc.nil?
-              prepared_index = [self.model_name, index.name, old_assoc.id].join(':')
+              prepared_index = [model_name.singular, index.name, old_assoc.id].join(':')
               prepared_index.downcase! if index.options[:case_insensitive]
 
               if index.options[:unique]
@@ -88,7 +88,7 @@ module RedisOrm
             # if new associated record is nil then skip to next index (since old associated record was already unreferenced)
             next if assoc_with_record.nil?
             
-            prepared_index = [self.model_name.singular, index.name, assoc_with_record.id].join(':')
+            prepared_index = [model_name.singular, index.name, assoc_with_record.id].join(':')
 
             prepared_index.downcase! if index.options[:case_insensitive]
 
@@ -108,13 +108,13 @@ module RedisOrm
             # TODO it states *self.model_name* in plural 
             # and there is no record yet from the *assoc_with_record*'s side 
             # (in order not to provoke recursion)
-            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym} && !$redis.zrank("#{assoc_with_record.model_name.singular}:#{assoc_with_record.id}:#{model_name.plural}", self.id)
+            if class_associations[assoc_with_record.model_name.singular].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym} && !$redis.zrank("#{assoc_with_record.model_name.singular}:#{assoc_with_record.id}:#{model_name.plural}", self.id)
               # remove old assoc
-              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.plural}", self.id) if old_assoc
+              $redis.zrem("#{old_assoc.model_name.singular}:#{old_assoc.id}:#{model_name.plural}", self.id) if old_assoc
               assoc_with_record.send(model_name.plural.to_sym).send(:"<<", self)
 
             # check whether *assoc_with_record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-            elsif class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym} && assoc_with_record.send(model_name.singular.to_sym).nil?
+            elsif class_associations[assoc_with_record.model_name.singular].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym} && assoc_with_record.send(model_name.singular.to_sym).nil?
               # old association is being rewritten here automatically so we don't have to worry about it
               assoc_with_record.send("#{model_name.singular}=", self)
             end

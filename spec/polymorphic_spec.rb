@@ -2,18 +2,18 @@ require 'spec_helper'
 
 describe "check polymorphic property" do
   it "should provide proper associations and save records correctly for has_one/belongs_to polymorphic" do
-    book = Book.new :title => "Permutation City", :author => "Egan Greg", :price => 1529
+    book = Book.new title: "Permutation City", price: 1529
     book.save
 
-    giftcard = Giftcard.create :title => "Happy New Year!"
+    giftcard = Giftcard.create title: "Happy New Year!"
 
-    ci1 = CatalogItem.create :title => giftcard.title
+    ci1 = CatalogItem.create title: giftcard.title
     ci1.resource = giftcard
     
-    ci2 = CatalogItem.create :title => book.title
+    ci2 = CatalogItem.create title: book.title
     ci2.resource = book
     
-    CatalogItem.count.should == 2
+    expect(CatalogItem.count).to be(2)
     [ci1, ci2].collect{|ci| ci.title}.should == [giftcard.title, book.title]
     
     ci1.resource.title.should == giftcard.title
@@ -27,10 +27,10 @@ describe "check polymorphic property" do
   end
   
   it "should provide proper associations and save records correctly for has_many/belongs_to polymorphic" do
-    country = Country.create :name => "Ukraine"
-    city = City.create :name => "Lviv"
+    country = Country.create name: "Ukraine"
+    city = City.create name: "Lviv"
     
-    person = Person.create :name => "german"
+    person = Person.create name: "german"
     person.location = country
     
     Person.first.location.id.should == country.id
@@ -48,8 +48,8 @@ describe "check polymorphic property" do
   end
   
   it "should delete records properly" do
-    country = Country.create :name => "Ukraine"
-    person = Person.create :name => "german"
+    country = Country.create name: "Ukraine"
+    person = Person.create name: "german"
     person.location = country
     
     Person.first.location.id.should == country.id

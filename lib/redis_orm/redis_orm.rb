@@ -403,50 +403,53 @@ module RedisOrm
       @@indices[self.model_name.singular]
     end
     
-    def initialize(attributes = {}, id = nil, persisted = false)
-      aligned_attributes = {}
+    def initialize(attributes = {}, id = nil, was_persisted = false)
+      aligned_attributes = attributes.symbolize_keys
       clear_changes_information
-      attributes.map do |attribute, value|
-        property = @@properties[model_name.singular].find { |prop| prop[:name].to_s == attribute.to_s }
-        prop_value = if property && property[:class] != value.class.to_s
-          case property[:class]
-          when 'Time'
-            value.to_s.to_time(:local) rescue ''
-          when 'DateTime'
-            ::DateTime.parse(value.to_s, false) rescue ''
-          when 'Integer'
-            value.to_i
-          when 'Float'
-            value.to_f
-          when 'RedisOrm::Boolean'
-            (value == "false" || value == false) ? false : true
-          when /Hash|Array/
-            JSON.parse(value) rescue ''
-          end
-        else
-          value
-        end
 
-        aligned_attributes[attribute] = prop_value
+      if was_persisted # then we need to normilize values from Strings
+        attributes.map do |attribute, value|
+          property = @@properties[model_name.singular].find { |prop| prop[:name].to_s == attribute.to_s }
+
+          prop_value = if property && property[:class] != value.class.to_s
+            case property[:class]
+            when 'Time'
+              value.to_s.to_time(:local) rescue ''
+            when 'DateTime'
+              ::DateTime.parse(value.to_s, false) rescue ''
+            when 'Integer'
+              value.to_i
+            when 'Float'
+              value.to_f
+            when 'RedisOrm::Boolean'
+              (value == "false" || value == false) ? false : true
+            when /Hash|Array/
+              JSON.parse(value) rescue ''
+            end
+          else
+            value
+          end
+          aligned_attributes[attribute] = prop_value
+        end
       end
 
-      if !@persisted
+      if !was_persisted
         @@properties[model_name.singular].each do |prop|
-          if aligned_attributes[prop[:name].to_s].nil? && !prop[:options][:default].nil?
+          if aligned_attributes[prop[:name].to_sym].nil? && !prop[:options][:default].nil?
             calculated_value = if prop[:options][:default].is_a?(Proc)
               prop[:options][:default].call
             else
               prop[:options][:default]
             end
 
-            aligned_attributes[prop[:name].to_s] = calculated_value
+            aligned_attributes[prop[:name].to_sym] = calculated_value
           end
         end
       end
 
       super(aligned_attributes)
       
-      @persisted = persisted
+      @persisted = was_persisted
 
       # # if this model uses uuid then id is a string otherwise it should be casted to Integer class
       id = @@use_uuid_as_id[model_name.singular] ? id : id.to_i
@@ -477,9 +480,9 @@ module RedisOrm
     def ==(other)
       raise "this object could be comparable only with object of the same class" if other.class != self.class
       same = true
-      @@properties[model_name].each do |prop|
+      @@properties[model_name.singular].each do |prop|
         self_var = instance_variable_get(:"@#{prop[:name]}")
-        same = false if other.send(prop[:name]).to_s != self_var.to_s
+        same = false if other.public_send(prop[:name]).to_s != self_var.to_s
       end
       same = false if self.id != other.id
       same
@@ -720,7 +723,6 @@ module RedisOrm
       # an exception should be raised before all saving procedures if wrong value type is specified (especcially true for Arrays and Hashes)
       @@properties[model_name.singular].each do |prop|
         prop_value = self.send(prop[:name].to_sym)
-        
         if prop_value && prop[:class] != prop_value.class.to_s && ['Array', 'Hash'].include?(prop[:class].to_s)
           raise TypeMismatchError 
         end
