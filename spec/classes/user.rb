@@ -6,8 +6,8 @@ class User < RedisOrm::Base
   property :age, Integer
   property :wage, Float
   property :male, RedisOrm::Boolean
-  property :created_at, Time
-  property :modified_at, Time
+  property :created_at, DateTime
+  property :modified_at, DateTime
   property :gender, RedisOrm::Boolean, default: true
   property :moderator, RedisOrm::Boolean, default: false
   property :moderated_area, String, default: "messages"

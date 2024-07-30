@@ -17,7 +17,7 @@ module RedisOrm
           foreign_model: foreign_model,
           options: options
         }
-        class_variable_get(:"@@associations")[model_name] << belongs_to_hash
+        class_variable_get(:"@@associations")[model_name.singular] << belongs_to_hash
 
         foreign_model_name = options[:as] ? options[:as].to_sym : foreign_model.to_sym
         
@@ -27,18 +27,20 @@ module RedisOrm
         end
         
         define_method foreign_model_name do
+          __key__ = "#{model_name.singular}:#{@id}:#{foreign_model_name}"
+
           if options[:polymorphic]
-            model_type = $redis.get("#{model_name}:#{id}:#{foreign_model_name}_type")
+            model_type = $redis.get("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
             if model_type
-              model_type.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}_id")
+              model_type.to_s.camelize.constantize.find($redis.get "#{__key__}_id")
             end
           else
             # find model even if it's in some module
             full_model_scope = RedisOrm::Base.descendants.detect{|desc| desc.to_s.split('::').include?(foreign_model.to_s.camelize) }
             if full_model_scope
-              full_model_scope.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+              full_model_scope.find($redis.get __key__)
             else
-              foreign_model.to_s.camelize.constantize.find($redis.get "#{model_name}:#{@id}:#{foreign_model_name}")
+              foreign_model.to_s.camelize.constantize.find($redis.get __key__)
             end
           end
         end
@@ -49,19 +51,21 @@ module RedisOrm
           # we need to store this to clear old association later
           old_assoc = self.send(foreign_model_name)
 
+          __key__ = "#{model_name.singular}:#{id}:#{foreign_model_name}"
+
           # find model even if it's in some module
           full_model_scope = RedisOrm::Base.descendants.detect do |desc|
             desc.to_s.split('::').include?(foreign_model.to_s.camelize)
           end
           
           if options[:polymorphic]
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}_type", assoc_with_record.model_name)
-            $redis.set("#{model_name}:#{id}:#{foreign_model_name}_id", assoc_with_record.id)
+            $redis.set("#{__key__}_type", assoc_with_record.model_name)
+            $redis.set("#{__key__}_id", assoc_with_record.id)
           else
             if assoc_with_record.nil?
-              $redis.del("#{model_name}:#{id}:#{foreign_model_name}")
+              $redis.del(__key__)
             elsif [foreign_model.to_s, full_model_scope.model_name].include?(assoc_with_record.model_name)
-              $redis.set("#{model_name}:#{id}:#{foreign_model_name}", assoc_with_record.id)
+              $redis.set(__key__, assoc_with_record.id)
             else
               raise TypeMismatchError
             end
@@ -84,7 +88,7 @@ module RedisOrm
             # if new associated record is nil then skip to next index (since old associated record was already unreferenced)
             next if assoc_with_record.nil?
             
-            prepared_index = [self.model_name, index.name, assoc_with_record.id].join(':')
+            prepared_index = [self.model_name.singular, index.name, assoc_with_record.id].join(':')
 
             prepared_index.downcase! if index.options[:case_insensitive]
 
@@ -98,21 +102,21 @@ module RedisOrm
           # we should have an option to delete created earlier associasion (like 'node.owner = nil')
           if assoc_with_record.nil?
             # remove old assoc            
-            $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
+            $redis.zrem("#{old_assoc.model_name.singular}:#{old_assoc.id}:#{model_name.plural}", self.id) if old_assoc
           else
             # check whether *assoc_with_record* object has *has_many* declaration and
             # TODO it states *self.model_name* in plural 
             # and there is no record yet from the *assoc_with_record*'s side 
             # (in order not to provoke recursion)
-            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.pluralize.to_sym} && !$redis.zrank("#{assoc_with_record.model_name}:#{assoc_with_record.id}:#{model_name.pluralize}", self.id)
+            if class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym} && !$redis.zrank("#{assoc_with_record.model_name.singular}:#{assoc_with_record.id}:#{model_name.plural}", self.id)
               # remove old assoc
-              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.pluralize}", self.id) if old_assoc
-              assoc_with_record.send(model_name.pluralize.to_sym).send(:"<<", self)
+              $redis.zrem("#{old_assoc.model_name}:#{old_assoc.id}:#{model_name.to_s.plural}", self.id) if old_assoc
+              assoc_with_record.send(model_name.plural.to_sym).send(:"<<", self)
 
             # check whether *assoc_with_record* object has *has_one* declaration and TODO it states *self.model_name* and there is no record yet from the *assoc_with_record*'s side (in order not to provoke recursion)
-            elsif class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.to_sym} && assoc_with_record.send(model_name.to_sym).nil?
+            elsif class_associations[assoc_with_record.model_name].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym} && assoc_with_record.send(model_name.singular.to_sym).nil?
               # old association is being rewritten here automatically so we don't have to worry about it
-              assoc_with_record.send("#{model_name}=", self)
+              assoc_with_record.send("#{model_name.singular}=", self)
             end
           end
         end

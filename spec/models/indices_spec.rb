@@ -14,9 +14,9 @@ describe "check indices" do
     u.first_name = "Chris"
     u.save
 
-    User.find_by_first_name("Robert").should == nil
+    expect(User.find_by_first_name("Robert")).to be_nil
 
-    User.find_by_first_name_and_last_name("Robert", "Pirsig").should == nil
+    expect(User.find_by_first_name_and_last_name("Robert", "Pirsig")).to be_nil
 
     User.find_by_first_name("Chris").id.should == user.id
     User.find_by_last_name("Pirsig").id.should == user.id

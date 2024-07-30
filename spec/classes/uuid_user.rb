@@ -6,8 +6,8 @@ class UuidUser < RedisOrm::Base
   property :wage, Float
   property :male, RedisOrm::Boolean
 
-  property :created_at, Time
-  property :modified_at, Time
+  property :created_at, DateTime
+  property :modified_at, DateTime
   
   has_many :users, :as => :friends
 end
