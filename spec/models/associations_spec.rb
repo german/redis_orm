@@ -150,7 +150,7 @@ describe "check associations" do
     
     @article.comments = [@comment1]
     @article.comments.count.should == 1
-    @article.comments.first.id.should == @comment1.id
+    expect(@article.comments.first.id).to eq(@comment1.id)
 
     @comment1.article.id.should == @article.id    
   end

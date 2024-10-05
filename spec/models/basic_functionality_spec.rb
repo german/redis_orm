@@ -9,22 +9,21 @@ describe "check basic functionality" do
   it "should return the same user" do
     user = User.new name: "german"
     user.save
-    User.first.should == user
+    expect(User.first).to eq(user)
     
     user.name = "Anderson"
     expect(User.first).not_to eq(user)
   end
 
   it "test_simple_creation" do
-    User.count.should == 0
+    expect(User.count).to be(0)
 
     user = User.new :name => "german"
-    
     user.save
 
-    user.should be
+    expect(user).to be
 
-    user.name.should == "german"
+    expect(user.name).to eq("german")
     user.__redis_record_key.should == "user:1"
 
     User.count.should == 1
@@ -170,7 +169,7 @@ describe "check basic functionality" do
   end
 
   it "should store default hash in the property if it's not provided" do
-    a = ArticleWithComments.new :title => "Article #1"
+    a = ArticleWithComments.new title: "Article #1"
     expect {
       a.save
     }.to change(ArticleWithComments, :count).by(1)

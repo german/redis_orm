@@ -4,7 +4,7 @@ module RedisOrm
       include HasManyHelper
       
       def initialize(receiver_model_name, reciever_id, foreign_models, options)
-        @records = [] #records.to_a
+        @records = []
         @reciever_model_name = receiver_model_name.to_s.downcase
         @reciever_id = reciever_id
         @foreign_models = foreign_models
@@ -17,7 +17,8 @@ module RedisOrm
       end
       
       def fetch
-        @records = @foreign_models.to_s.singularize.camelize.constantize.find($redis.zrevrangebyscore __key__, Time.now.to_f, 0)
+        ids = $redis.zrevrangebyscore __key__, Time.now.to_f, 0
+        @records = @foreign_models.to_s.singularize.camelize.constantize.find(ids)
         @fetched = true
       end
 

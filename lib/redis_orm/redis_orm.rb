@@ -403,29 +403,37 @@ module RedisOrm
       @@indices[self.model_name.singular]
     end
     
+    def cast_to(type:, value:)
+      case type
+      when 'Time'
+        value.to_s.to_time(:local) rescue Time.now
+      when 'DateTime'
+        ::DateTime.parse(value.to_s, false) rescue DateTime.now
+      when 'Integer'
+        value.to_i
+      when 'Float'
+        value.to_f
+      when 'RedisOrm::Boolean'
+        (value == "false" || value == false) ? false : true
+      when 'Array'
+        JSON.parse(value) rescue []
+      when 'Hash'
+        JSON.parse(value) rescue {}
+      else
+        value.to_s
+      end
+    end
+
     def initialize(attributes = {}, id = nil, was_persisted = false)
-      aligned_attributes = attributes.symbolize_keys
+      aligned_attributes = attributes.dup
       clear_changes_information
 
-      if was_persisted # then we need to normilize values from Strings
+      if was_persisted # then we need to normalize values from Strings
         attributes.map do |attribute, value|
           property = @@properties[model_name.singular].find { |prop| prop[:name].to_s == attribute.to_s }
 
-          prop_value = if property && property[:class] != value.class.to_s
-            case property[:class]
-            when 'Time'
-              value.to_s.to_time(:local) rescue ''
-            when 'DateTime'
-              ::DateTime.parse(value.to_s, false) rescue ''
-            when 'Integer'
-              value.to_i
-            when 'Float'
-              value.to_f
-            when 'RedisOrm::Boolean'
-              (value == "false" || value == false) ? false : true
-            when /Hash|Array/
-              JSON.parse(value) rescue ''
-            end
+          prop_value = if property && property[:class].to_s != value.class.to_s
+            cast_to(type: property[:class], value: value)
           else
             value
           end
@@ -433,17 +441,21 @@ module RedisOrm
         end
       end
 
-      if !was_persisted
+      if ! was_persisted
         @@properties[model_name.singular].each do |prop|
-          if aligned_attributes[prop[:name].to_sym].nil? && !prop[:options][:default].nil?
-            calculated_value = if prop[:options][:default].is_a?(Proc)
+          calculated_value = if aligned_attributes[prop[:name]].nil? && !prop[:options][:default].nil?
+            if prop[:options][:default].is_a?(Proc)
               prop[:options][:default].call
             else
               prop[:options][:default]
             end
-
-            aligned_attributes[prop[:name].to_sym] = calculated_value
+          elsif aligned_attributes[prop[:name]].nil?
+            cast_to(type: prop[:class], value: attributes[prop[:name]])
+          else
+            attributes[prop[:name]]
           end
+
+          aligned_attributes[prop[:name]] = calculated_value
         end
       end
 
@@ -479,10 +491,22 @@ module RedisOrm
     
     def ==(other)
       raise "this object could be comparable only with object of the same class" if other.class != self.class
+
       same = true
       @@properties[model_name.singular].each do |prop|
-        self_var = instance_variable_get(:"@#{prop[:name]}")
-        same = false if other.public_send(prop[:name]).to_s != self_var.to_s
+        other_val = other.public_send(prop[:name])
+        self_val = public_send(prop[:name])
+
+        # The issue occurs because ruby Time makes comparison with fractions of seconds. 
+        # > t1.to_f
+        # => 1395955158.547284
+        # > t2.to_f
+        # => 1395955158.547298
+        if ['Time', 'DateTime'].include?(prop[:class].to_s)
+          same = false if other_val.to_i != self_val.to_i
+        else
+          same = false if other_val != self_val
+        end
       end
       same = false if self.id != other.id
       same
@@ -514,11 +538,11 @@ module RedisOrm
         @id = get_next_id
         $redis.zadd "#{model_name.singular}:ids", Time.now.to_f, @id
         @persisted = true
-        self.created_at = Time.now if respond_to? :created_at
+        self.created_at = Time.now if respond_to?(:created_at) && self.created_at.nil?
       end
 
       # automatically update *modified_at* property if it was defined
-      self.modified_at = Time.now if respond_to? :modified_at
+      self.modified_at = Time.now if respond_to?(:modified_at)
 
       _save_to_redis # main work done here
       _save_new_indices
