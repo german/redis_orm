@@ -50,21 +50,20 @@ module RedisOrm
         define_method "#{foreign_model_name}=" do |assoc_with_record|
           # we need to store this to clear old association later
           old_assoc = self.send(foreign_model_name)
-
           __key__ = "#{model_name.singular}:#{id}:#{foreign_model_name}"
 
           # find model even if it's in some module
           full_model_scope = RedisOrm::Base.descendants.detect do |desc|
             desc.to_s.split('::').include?(foreign_model.to_s.camelize)
           end
-          
+
           if options[:polymorphic]
             $redis.set("#{__key__}_type", assoc_with_record.model_name.singular)
             $redis.set("#{__key__}_id", assoc_with_record.id)
           else
             if assoc_with_record.nil?
               $redis.del(__key__)
-            elsif [foreign_model.to_s, full_model_scope.model_name].include?(assoc_with_record.model_name)
+            elsif [foreign_model.to_s, full_model_scope.model_name.singular].include?(assoc_with_record.model_name.singular)
               $redis.set(__key__, assoc_with_record.id)
             else
               raise TypeMismatchError

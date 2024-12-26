@@ -1,11 +1,9 @@
-require 'test_helper.rb'
+require 'spec_helper.rb'
 
 describe "check callbacks" do
   it "should fire after_create/after_destroy callbacks" do
-    user = User.new :first_name => "Robert", :last_name => "Pirsig"
-    user.save
-
-    $redis.zrank("users:sorted_by_rating", user.id).should == 0
+    user = User.create(first_name: "Robert", last_name: "Pirsig")
+    expect($redis.zrank("users:sorted_by_rating", user.id)).to eq(0)
 
     comment = Comment.create :text => "First!"
     user.comments << comment

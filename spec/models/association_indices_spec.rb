@@ -139,12 +139,13 @@ describe "check indices for associations" do
   end
 
   it "should return first model if it exists when conditions contain associated object (belongs_to assoc established when creating object)" do
-    user = User.create :name => "Dmitrii Samoilov", :age => 99, :wage => 35_000, :first_name => "Dmitrii", :last_name => "Samoilov"
-    note = Note.create :body => "a test to test", :owner => user
-    Note.create :body => "aero" # just test what would *find* return if 2 exemplars of Note are created
+    user = User.create name: "Dmytro Samoilov", age: 99, wage: 35_000, first_name: "Dmytro", last_name: "Samoilov"
     
-    User.count.should == 1
-    Note.count.should == 2
+    note = Note.create body: "a test to test", owner: user
+    Note.create body: "aero" # just test what would *find* return if 2 exemplars of Note are created
+    
+    expect(User.count).to eq(1)
+    expect(Note.count).to eq(1)
 
     note.owner.should == user
     
@@ -153,9 +154,9 @@ describe "check indices for associations" do
   end
   
   it "should return first model if it exists when conditions contain associated object (has_one assoc established when creating object)" do
-    profile = Profile.create :title => "a test to test", :name => "german"
-    user = User.create :name => "Dmitrii Samoilov", :age => 99, :wage => 35_000, :first_name => "Dmitrii", :last_name => "Samoilov", :profile => profile
-    User.create :name => "Warren Buffet", :age => 399, :wage => 12_235_000, :first_name => "Warren", :last_name => "Buffet"
+    profile = Profile.create title: "a test to test", name: "german"
+    user = User.create name: "Dmitrii Samoilov", age: 99, wage: 35_000, first_name: "Dmitrii", last_name: "Samoilov", profile: profile
+    User.create name: "Warren Buffet", age: 399, wage: 12_235_000, first_name: "Warren", last_name: "Buffet"
     
     User.count.should == 2
     Profile.count.should == 1

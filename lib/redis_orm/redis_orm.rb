@@ -42,8 +42,9 @@ module RedisOrm
 
   class Base
     include ActiveModel::API
+    include ActiveModel::Validations
     include ActiveModel::Dirty
-    extend ActiveModel::Callbacks
+    include ActiveModel::Conversion
 
     include Utils
     include Associations::HasManyHelper
@@ -58,8 +59,10 @@ module RedisOrm
     @@use_uuid_as_id = {}
     @@descendants = []
     @@expire = Hash.new{|h,k| h[k] = {}}
-        
+
     class << self
+      extend ActiveModel::Callbacks
+      define_model_callbacks :create, :update, :destroy, :save
 
       def inherited(from)
         @@descendants << from
@@ -304,19 +307,20 @@ module RedisOrm
       end
 
       def create(options = {})
-        obj = new(options, nil, false)
-        obj.save
+        run_callbacks :create do
+          obj = new(options, nil, false)
+          obj.save
 
-        # make possible binding related models while creating class instance
-        options.each do |k, v|
-          if @@associations[model_name.singular].detect{|h| h[:foreign_model] == k || h[:options][:as] == k}
-            obj.send("#{k}=", v)
+          # make possible binding related models while creating class instance
+          options.each do |k, v|
+            if @@associations[model_name.singular].detect{|h| h[:foreign_model] == k.to_sym || h[:options][:as] == k.to_sym}
+              obj.send("#{k}=", v)
+            end
           end
+          
+          $redis.expire(obj.__redis_record_key, options[:expire_in].to_i) if !options[:expire_in].blank?
+          obj
         end
-        
-        $redis.expire(obj.__redis_record_key, options[:expire_in].to_i) if !options[:expire_in].blank?
-
-        obj
       end
       
       # dynamic finders
@@ -479,7 +483,7 @@ module RedisOrm
     
     def to_s
       inspected = "<#{model_name.name} id: #{@id}, "
-      inspected += @@properties[model_name].inject([]) do |sum, prop|
+      inspected += @@properties[model_name.singular].inject([]) do |sum, prop|
         property_value = instance_variable_get(:"@#{prop[:name]}")
         property_value = '"' + property_value.to_s + '"' if prop[:class].eql?("String")
         property_value = 'nil' if property_value.nil?
@@ -496,7 +500,6 @@ module RedisOrm
       @@properties[model_name.singular].each do |prop|
         other_val = other.public_send(prop[:name])
         self_val = public_send(prop[:name])
-
         # The issue occurs because ruby Time makes comparison with fractions of seconds. 
         # > t1.to_f
         # => 1395955158.547284
@@ -525,31 +528,33 @@ module RedisOrm
     end    
     
     def save
-      return false if !valid?
+      run_callbacks :save do
+        # return false if !valid?
 
-      _check_mismatched_types_for_values
-      
-      # store here initial persisted flag so we could invoke :after_create callbacks in the end of *save* function
-      was_persisted = persisted?
+        _check_mismatched_types_for_values
+        
+        # store here initial persisted flag so we could invoke :after_create callbacks in the end of *save* function
+        was_persisted = persisted?
 
-      if persisted? # then there might be old indices
-        _check_indices_for_persisted # remove old indices if needed
-      else # !persisted?
-        @id = get_next_id
-        $redis.zadd "#{model_name.singular}:ids", Time.now.to_f, @id
-        @persisted = true
-        self.created_at = Time.now if respond_to?(:created_at) && self.created_at.nil?
+        if persisted? # then there might be old indices
+          _check_indices_for_persisted # remove old indices if needed
+        else # !persisted?
+          @id = get_next_id
+          $redis.zadd "#{model_name.singular}:ids", Time.now.to_f, @id
+          @persisted = true
+          self.created_at = Time.now if respond_to?(:created_at) && self.created_at.nil?
+        end
+
+        # automatically update *modified_at* property if it was defined
+        self.modified_at = Time.now if respond_to?(:modified_at)
+
+        _save_to_redis # main work done here
+        _save_new_indices
+
+        changes_applied # for ActiveModel::Dirty
+
+        true # if there were no errors just return true, so *if obj.save* conditions would work
       end
-
-      # automatically update *modified_at* property if it was defined
-      self.modified_at = Time.now if respond_to?(:modified_at)
-
-      _save_to_redis # main work done here
-      _save_new_indices
-
-      changes_applied # for ActiveModel::Dirty
-
-      true # if there were no errors just return true, so *if obj.save* conditions would work
     end
 
     def find_position_to_insert(sortable_key, value)
@@ -608,125 +613,127 @@ module RedisOrm
     end
 
     def destroy
-      @@properties[model_name.singular].each do |prop|
-        property_value = instance_variable_get(:"@#{prop[:name]}").to_s
-        $redis.hdel("#{model_name.singular}:#{@id}", prop[:name].to_s)
-        
-        if prop[:options][:sortable]
-          if prop[:class].eql?("String")
-            $redis.lrem "#{model_name.singular}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
-          else
-            $redis.zrem "#{model_name.singular}:#{prop[:name]}_ids", @id
+      run_callbacks :destroy do
+        @@properties[model_name.singular].each do |prop|
+          property_value = instance_variable_get(:"@#{prop[:name]}").to_s
+          $redis.hdel("#{model_name.singular}:#{@id}", prop[:name].to_s)
+          
+          if prop[:options][:sortable]
+            if prop[:class].eql?("String")
+              $redis.lrem "#{model_name.singular}:#{prop[:name]}_ids", 1, "#{property_value}:#{@id}"
+            else
+              $redis.zrem "#{model_name.singular}:#{prop[:name]}_ids", @id
+            end
           end
         end
-      end
 
-      $redis.zrem "#{model_name.singular}:ids", @id
+        $redis.zrem "#{model_name.singular}:ids", @id
 
-      # also we need to delete *indices* of associated records
-      if !@@associations[model_name.singular].empty?
-        @@associations[model_name.singular].each do |assoc|
-          if :belongs_to == assoc[:type]
-            # if assoc has :as option
-            foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
-            
-            if !self.send(foreign_model_name).nil?
-              @@indices[model_name.singular].each do |index|
-                keys_to_delete = if index.name.is_a?(Array)
-                  full_index = index.name.inject([]){|sum, index_part| sum << index_part}.join(':')
-                  $redis.keys "#{foreign_model_name}:#{self.public_send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{full_index}:*"
-                else
-                  ["#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.to_s.pluralize}:#{index.name}:#{self.public_send(index.name)}"]
-                end
-                keys_to_delete.each do |key| 
-                  index.options[:unique] ? $redis.del(key) : $redis.zrem(key, @id)
+        # also we need to delete *indices* of associated records
+        if !@@associations[model_name.singular].empty?
+          @@associations[model_name.singular].each do |assoc|
+            if :belongs_to == assoc[:type]
+              # if assoc has :as option
+              foreign_model_name = assoc[:options][:as] ? assoc[:options][:as].to_sym : assoc[:foreign_model].to_sym
+              
+              if !self.send(foreign_model_name).nil?
+                @@indices[model_name.singular].each do |index|
+                  keys_to_delete = if index.name.is_a?(Array)
+                    full_index = index.name.inject([]){|sum, index_part| sum << index_part}.join(':')
+                    $redis.keys "#{foreign_model_name}:#{self.public_send(foreign_model_name).id}:#{model_name.plural}:#{full_index}:*"
+                  else
+                    ["#{foreign_model_name}:#{self.send(foreign_model_name).id}:#{model_name.plural}:#{index.name}:#{self.public_send(index.name)}"]
+                  end
+                  keys_to_delete.each do |key| 
+                    index.options[:unique] ? $redis.del(key) : $redis.zrem(key, @id)
+                  end
                 end
               end
             end
           end
         end
-      end
       
-      # also we need to delete *links* to associated records
-      if !@@associations[model_name.singular].empty?
-        @@associations[model_name.singular].each do |assoc|
+        # also we need to delete *links* to associated records
+        if !@@associations[model_name.singular].empty?
+          @@associations[model_name.singular].each do |assoc|
 
-          foreign_model  = ""
-          records = []
+            foreign_model  = ""
+            records = []
 
-          case assoc[:type]
-            when :belongs_to
-              foreign_model = assoc[:foreign_model].to_s
-              foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
-              if assoc[:options][:polymorphic]
+            case assoc[:type]
+              when :belongs_to
+                foreign_model = assoc[:foreign_model].to_s
+                foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
+                if assoc[:options][:polymorphic]
+                  records << self.send(foreign_model_name)
+                  # get real foreign_model's name in order to delete backlinks properly
+                  foreign_model = $redis.get("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
+                  $redis.del("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
+                  $redis.del("#{model_name.singular}:#{id}:#{foreign_model_name}_id")
+                else
+                  records << self.send(foreign_model_name)
+                  $redis.del "#{model_name.singular}:#{@id}:#{assoc[:foreign_model]}"
+                end
+              when :has_one
+                foreign_model = assoc[:foreign_model].to_s
+                foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
                 records << self.send(foreign_model_name)
-                # get real foreign_model's name in order to delete backlinks properly
-                foreign_model = $redis.get("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
-                $redis.del("#{model_name.singular}:#{id}:#{foreign_model_name}_type")
-                $redis.del("#{model_name.singular}:#{id}:#{foreign_model_name}_id")
-              else
-                records << self.send(foreign_model_name)
+
                 $redis.del "#{model_name.singular}:#{@id}:#{assoc[:foreign_model]}"
-              end
-            when :has_one
-              foreign_model = assoc[:foreign_model].to_s
-              foreign_model_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_model]
-              records << self.send(foreign_model_name)
+              when :has_many
+                foreign_model = assoc[:foreign_models].to_s.singularize
+                foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_models]
+                records += self.send(foreign_models_name)
 
-              $redis.del "#{model_name.singular}:#{@id}:#{assoc[:foreign_model]}"
-            when :has_many
-              foreign_model = assoc[:foreign_models].to_s.singularize
-              foreign_models_name = assoc[:options][:as] ? assoc[:options][:as] : assoc[:foreign_models]
-              records += self.send(foreign_models_name)
-
-              # delete all members             
-              $redis.zremrangebyscore "#{model_name.singular}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
-          end
-
-          # check whether foreign_model also has an assoc to the destroying record
-          # and remove an id of destroing record from each of associated sets
-          if !records.compact.empty?
-            records.compact.each do |record|
-              # we make 3 different checks rather then 1 with elsif to ensure that all associations will be processed
-              # it's covered in test/option_test in "should delete link to associated record when record was deleted" scenario
-              # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
-              # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
-              if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.singular.to_sym}
-                $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
-              end
-
-              if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym}
-                $redis.del "#{foreign_model}:#{record.id}:#{model_name}"
-              end
-
-              if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym}
-                $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.plural}", @id
-              end
+                # delete all members             
+                $redis.zremrangebyscore "#{model_name.singular}:#{@id}:#{assoc[:foreign_models]}", 0, Time.now.to_f
             end
-          end
 
-          if assoc[:options][:dependent] == :destroy
+            # check whether foreign_model also has an assoc to the destroying record
+            # and remove an id of destroing record from each of associated sets
             if !records.compact.empty?
-              records.compact.each do |r|
-                r.destroy
+              records.compact.each do |record|
+                # we make 3 different checks rather then 1 with elsif to ensure that all associations will be processed
+                # it's covered in test/option_test in "should delete link to associated record when record was deleted" scenario
+                # for if class Album; has_one :photo, :as => :front_photo; has_many :photos; end
+                # end some photo from the album will be deleted w/o these checks only first has_one will be triggered
+                if @@associations[foreign_model].detect{|h| h[:type] == :belongs_to && h[:foreign_model] == model_name.singular.to_sym}
+                  $redis.del "#{foreign_model}:#{record.id}:#{model_name.singular}"
+                end
+
+                if @@associations[foreign_model].detect{|h| h[:type] == :has_one && h[:foreign_model] == model_name.singular.to_sym}
+                  $redis.del "#{foreign_model}:#{record.id}:#{model_name.singular}"
+                end
+
+                if @@associations[foreign_model].detect{|h| h[:type] == :has_many && h[:foreign_models] == model_name.plural.to_sym}
+                  $redis.zrem "#{foreign_model}:#{record.id}:#{model_name.plural}", @id
+                end
+              end
+            end
+
+            if assoc[:options][:dependent] == :destroy
+              if !records.compact.empty?
+                records.compact.each do |r|
+                  r.destroy
+                end
               end
             end
           end
         end
-      end
 
-      # remove all associated indices
-      @@indices[model_name.singular].each do |index|
-        prepared_index = _construct_prepared_index(index) # instance method not class one!
+        # remove all associated indices
+        @@indices[model_name.singular].each do |index|
+          prepared_index = _construct_prepared_index(index) # instance method not class one!
 
-        if index.options[:unique]
-          $redis.del(prepared_index)
-        else
-          $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
+          if index.options[:unique]
+            $redis.del(prepared_index)
+          else
+            $redis.zremrangebyscore(prepared_index, 0, Time.now.to_f)
+          end
         end
-      end
 
-      true # if there were no errors just return true, so *if* conditions would work
+        true # if there were no errors just return true, so *if* conditions would work
+      end
     end
     
   protected
@@ -819,14 +826,14 @@ module RedisOrm
                   if !self.public_send(foreign_model_name).nil?
                     if index.name.is_a?(Array)
                       keys_to_delete = if index.name.index(prop) == 0
-                        $redis.keys "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}#{prev_prop_value}*"
+                        $redis.keys "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.plural}:#{prop[:name]}#{prev_prop_value}*"
                       else
-                        $redis.keys "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:*#{prop[:name]}:#{prev_prop_value}*"
+                        $redis.keys "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.plural}:*#{prop[:name]}:#{prev_prop_value}*"
                       end
 
                       keys_to_delete.each{|key| $redis.del(key)}
                     else
-                      beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.to_s.pluralize}:#{prop[:name]}:"
+                      beginning_of_the_key = "#{assoc[:foreign_model]}:#{self.public_send(assoc[:foreign_model]).id}:#{model_name.plural}:#{prop[:name]}:"
 
                       $redis.del(beginning_of_the_key + prev_prop_value.to_s)
 

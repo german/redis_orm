@@ -175,7 +175,8 @@ describe "check basic functionality" do
     }.to change(ArticleWithComments, :count).by(1)
     
     saved_article = ArticleWithComments.last
-    expect(saved_article.rates).to eq({'1'=>0, '2'=>0, '3'=>0, '4' => 0, '5'=> 0})
+    h = {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0}
+    expect(saved_article.rates).to eq({'1': 0, '2': 0, '3': 0, '4': 0, '5': 0})
   end
   
   it "should store hash in the property correctly" do
